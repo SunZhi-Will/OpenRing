@@ -6,18 +6,32 @@ labels: enhancement
 assignees: ''
 ---
 
-## 💡 功能描述 (Is your feature request related to a problem? Please describe.)
+[English Version Below](#english-version)
+
+## 💡 功能描述
 請清楚並簡潔地說明您遇到什麼痛點，或者您希望這個功能解決什麼問題。
-(A clear and concise description of what the problem is. Ex. I'm always frustrated when [...])
 
-## 🚀 解決方案 (Describe the solution you'd like)
+## 🚀 解決方案
 您期望我們如何實作這個功能？這會為您帶來什麼價值？
-(A clear and concise description of what you want to happen.)
 
-## 🎯 替代方案 (Describe alternatives you've considered)
+## 🎯 替代方案
 如果有其他方法可以達成此目的，請在這裡列出。
-(A clear and concise description of any alternative solutions or features you've considered.)
 
-## 📝 額外補充 (Additional context)
+## 📝 額外補充
 請在此處補充說明這個功能建議的任何其他背景、使用情境、設計稿等。
-(Add any other context or screenshots about the feature request here.)
+
+---
+
+<a id="english-version"></a>
+
+## 💡 Is your feature request related to a problem? Please describe.
+A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+
+## 🚀 Describe the solution you'd like
+A clear and concise description of what you want to happen.
+
+## 🎯 Describe alternatives you've considered
+A clear and concise description of any alternative solutions or features you've considered.
+
+## 📝 Additional context
+Add any other context or screenshots about the feature request here.
