@@ -39,7 +39,7 @@ OpenRing is a local automation Agent that freely navigates the Android system wi
 
 ## 📈 Activity & Stars
 
-[![Star History Chart](https://api.star-history.com/svg?repos=SunZhi-Will/OpenRing&type=Date)](https://star-history.com/#SunZhi-Will/OpenRing&Date)
+[![Star History Chart](https://api.star-history.com/image?repos=SunZhi-Will/OpenRing&type=date&legend=top-left)](https://www.star-history.com/?repos=SunZhi-Will%2FOpenRing&type=date&legend=top-left)
 
 ---
 

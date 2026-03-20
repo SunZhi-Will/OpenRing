@@ -41,7 +41,7 @@ OpenRing 是一款能在 Android 系統上自由穿梭、擁有「Ring 0」般�
 
 ## 📈 專案熱度
 
-[![Star History Chart](https://api.star-history.com/svg?repos=SunZhi-Will/OpenRing&type=Date)](https://star-history.com/#SunZhi-Will/OpenRing&Date)
+[![Star History Chart](https://api.star-history.com/image?repos=SunZhi-Will/OpenRing&type=date&legend=top-left)](https://www.star-history.com/?repos=SunZhi-Will%2FOpenRing&type=date&legend=top-left)
 
 ---
 

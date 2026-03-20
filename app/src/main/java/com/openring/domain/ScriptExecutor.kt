@@ -167,6 +167,32 @@ class ScriptExecutor(
                     "NODE_NOT_FOUND: Cannot extract text from $nodeId"
                 }
             }
+            "ai_action" -> {
+                val prompt = params["prompt"] ?: return "Missing prompt"
+                val keyStore = com.openring.security.ApiKeyStore(context)
+                val modelStore = com.openring.settings.ModelStore(context)
+                var lastError: String? = "No valid API key or model available"
+                var success = false
+                val coordinator = com.openring.agent.ReActCoordinator(context)
+                for (opt in modelStore.getModels()) {
+                    val key = keyStore.getGeminiApiKeyForModel(opt.id)
+                    if (key.isNullOrBlank() || opt.provider != "gemini") continue
+                    try {
+                        val result = coordinator.run(
+                            apiKey = key,
+                            model = opt.model,
+                            userText = prompt,
+                            shouldCancel = { false },
+                            onTurn = { }
+                        )
+                        success = true
+                        break
+                    } catch (e: Exception) {
+                        lastError = e.message
+                    }
+                }
+                if (!success) lastError else null
+            }
             else -> "Unknown step type: ${step.type}"
         }
     }
