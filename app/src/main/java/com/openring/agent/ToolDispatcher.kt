@@ -307,6 +307,49 @@ class ToolDispatcher(
                 ToolResult(false, ErrorCode.PERMISSION_DENIED.name, "Skill engine not implemented yet")
             }
 
+            "create_scheduled_script" -> {
+                val name = args["name"]?.jsonPrimitive?.content
+                    ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing name")
+                val prompt = args["prompt"]?.jsonPrimitive?.content
+                    ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing prompt")
+                val enabled = args["enabled"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: true
+                val type = args["type"]?.jsonPrimitive?.content ?: "interval"
+                val mode = args["mode"]?.jsonPrimitive?.content ?: "battery"
+                val hour = args["hour"]?.jsonPrimitive?.content?.toIntOrNull() ?: 9
+                val minute = args["minute"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                val minutes = args["minutes"]?.jsonPrimitive?.content?.toIntOrNull() ?: 30
+                val schedule = Schedule(enabled, type, mode, hour, minute, minutes)
+
+                runBlocking {
+                    val db = OpenRingDatabase.getDatabase(context)
+                    val dao = db.scriptDao()
+                    val scriptId = java.util.UUID.randomUUID().toString()
+                    
+                    val stepsList = listOf(
+                        com.openring.data.model.ScriptStep(
+                            type = "ai_action",
+                            params = mapOf("prompt" to prompt)
+                        )
+                    )
+                    
+                    val script = com.openring.data.model.Script(
+                        id = scriptId,
+                        name = name,
+                        version = 1,
+                        stepsJson = json.encodeToString(kotlinx.serialization.builtins.ListSerializer(com.openring.data.model.ScriptStep.serializer()), stepsList),
+                        scheduleJson = json.encodeToString(Schedule.serializer(), schedule)
+                    )
+                    dao.insert(script)
+                    Scheduler(context).scheduleScript(scriptId, schedule)
+                    ToolResult(true, data = buildJsonObject {
+                        put("scriptId", scriptId)
+                        put("name", name)
+                        put("enabled", enabled)
+                        put("type", type)
+                    })
+                }
+            }
+
             "update_script_schedule" -> {
                 val scriptId = args["scriptId"]?.jsonPrimitive?.content
                     ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing scriptId")

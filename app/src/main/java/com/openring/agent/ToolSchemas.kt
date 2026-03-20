@@ -30,6 +30,7 @@ object ToolSchemas {
                     extractText(),
                     callSkill(),
                     updateScriptSchedule(),
+                    createScheduledScript(),
                     setSystemPrompt(),
                     installSkill()
                 )
@@ -251,6 +252,40 @@ object ToolSchemas {
                 putJsonObject("minutes") { put("type", JsonPrimitive("integer")) }
             }
             putJsonArray("required") { add(JsonPrimitive("scriptId")) }
+        }
+    )
+
+    private fun createScheduledScript() = FunctionDeclaration(
+        name = "create_scheduled_script",
+        description = "Create a new script (task) with an AI prompt step and a schedule. Use this to schedule recurring AI tasks (like cron jobs). type: interval|hourly|daily|disabled, mode: battery|exact|always_on.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("name") { put("type", JsonPrimitive("string")) }
+                putJsonObject("prompt") { put("type", JsonPrimitive("string")) }
+                putJsonObject("enabled") { put("type", JsonPrimitive("boolean")) }
+                putJsonObject("type") {
+                    put("type", JsonPrimitive("string"))
+                    putJsonArray("enum") {
+                        add(JsonPrimitive("disabled"))
+                        add(JsonPrimitive("daily"))
+                        add(JsonPrimitive("hourly"))
+                        add(JsonPrimitive("interval"))
+                    }
+                }
+                putJsonObject("mode") {
+                    put("type", JsonPrimitive("string"))
+                    putJsonArray("enum") {
+                        add(JsonPrimitive("battery"))
+                        add(JsonPrimitive("exact"))
+                        add(JsonPrimitive("always_on"))
+                    }
+                }
+                putJsonObject("hour") { put("type", JsonPrimitive("integer")) }
+                putJsonObject("minute") { put("type", JsonPrimitive("integer")) }
+                putJsonObject("minutes") { put("type", JsonPrimitive("integer")) }
+            }
+            putJsonArray("required") { add(JsonPrimitive("name")); add(JsonPrimitive("prompt")) }
         }
     )
 

@@ -227,7 +227,7 @@ fun ScriptEditorScreen(
 }
 
 private val STEP_TYPES = listOf(
-    "wait", "launch_app", "find_and_click", "click_node", "swipe", "long_press",
+    "ai_action", "wait", "launch_app", "find_and_click", "click_node", "swipe", "long_press",
     "back", "home", "extract_text"
 )
 
@@ -254,6 +254,7 @@ private val SWIPE_DISTANCE_OPTIONS = listOf(
 )
 
 private fun stepTypeLabel(type: String): String = when (type) {
+    "ai_action" -> "AI 指令"
     "wait" -> "等待"
     "launch_app" -> "開啟 App"
     "find_and_click" -> "依文字點擊"
@@ -282,6 +283,7 @@ private fun stepTypeDescription(type: String): String = when (type) {
 private const val CUSTOM_PACKAGE_KEY = "__custom__"  // 與 ScriptExecutor 檢查一致
 
 private fun defaultParamsForType(type: String): Map<String, String> = when (type) {
+    "ai_action" -> mapOf("prompt" to "")
     "wait" -> mapOf("ms" to "1000")
     "launch_app" -> mapOf("package" to "")
     "find_and_click" -> mapOf("text" to "", "match" to "contains")
@@ -376,6 +378,16 @@ private fun StepCard(
             }
             Spacer(modifier = Modifier.height(Spacing.sm))
             when (currentType) {
+                "ai_action" -> {
+                    OutlinedTextField(
+                        value = params["prompt"] ?: "",
+                        onValueChange = { params["prompt"] = it; onUpdate(step.copy(params = params)) },
+                        label = { Text("要執行的 AI 指令 (如: 抓取畫面上 BTC 的價格並記錄)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 5,
+                        minLines = 2
+                    )
+                }
                 "launch_app" -> {
                     val pkg = params["package"] ?: ""
                     val selectedApp = installedApps.find { it.second == pkg }?.first
