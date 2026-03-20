@@ -1,0 +1,27 @@
+{
+  "name": "crypto_price_fetcher",
+  "description": "Fetch or compute realtime prices for requested crypto symbols. Use this when the user asks for current prices based on a provided symbols list.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "symbols": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    },
+    "required": ["symbols"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "prices": {
+        "type": "object",
+        "additionalProperties": { "type": "number" }
+      }
+    }
+  },
+  "permissions": {
+    "network": { "required": true }
+  }
+}
+

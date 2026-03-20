@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OpenRing</string>
+    <string name="accessibility_service_description">OpenRing 需要無障礙權限以讀取畫面並執行自動化操作</string>
+</resources>

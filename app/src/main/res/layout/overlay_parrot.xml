@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="56dp"
+    android:layout_height="56dp"
+    android:background="@drawable/overlay_background"
+    android:clickable="true"
+    android:elevation="8dp"
+    android:focusable="false"
+    android:padding="10dp">
+
+    <ImageView
+        android:id="@+id/overlay_icon"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_gravity="center"
+        android:contentDescription="OpenRing 執行中"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_parrot_overlay" />
+
+    <View
+        android:id="@+id/overlay_status_dot"
+        android:layout_width="10dp"
+        android:layout_height="10dp"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="2dp"
+        android:layout_marginBottom="2dp"
+        android:background="@drawable/overlay_status_idle" />
+
+    <ImageView
+        android:id="@+id/overlay_stop"
+        android:layout_width="22dp"
+        android:layout_height="22dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="1dp"
+        android:layout_marginEnd="1dp"
+        android:background="@drawable/overlay_stop_background"
+        android:contentDescription="中斷執行"
+        android:padding="4dp"
+        android:src="@android:drawable/ic_menu_close_clear_cancel"
+        android:tint="#FFFFFFFF"
+        android:visibility="gone" />
+</FrameLayout>

@@ -1,0 +1,19 @@
+{
+  "name": "text_uppercase",
+  "description": "Convert input text to uppercase. Use when the user asks for text normalization or case conversion.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string" }
+    },
+    "required": ["text"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string" }
+    }
+  },
+  "permissions": {}
+}
+

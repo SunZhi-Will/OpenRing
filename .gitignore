@@ -1,0 +1,32 @@
+*.iml
+.gradle/
+local.properties
+/.idea/
+.DS_Store
+/build
+/app/build
+/captures
+.externalNativeBuild
+.cxx
+.kotlin/
+.cursor/
+# Ignore macOS generated files
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+# KeyStores
+*.jks
+*.keystore
+*.pem
+*.key
+*.p12
+*.env
+*.env.*

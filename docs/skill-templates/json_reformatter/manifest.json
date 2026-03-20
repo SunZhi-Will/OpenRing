@@ -1,0 +1,24 @@
+{
+  "name": "json_reformatter",
+  "description": "Reformat JSON input as compact or pretty text. Use when the user wants deterministic formatting for JSON content.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "data": {},
+      "style": {
+        "type": "string",
+        "enum": ["compact", "pretty"],
+        "default": "pretty"
+      }
+    },
+    "required": ["data"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "json": { "type": "string" }
+    }
+  },
+  "permissions": {}
+}
+

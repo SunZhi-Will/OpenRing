@@ -1,0 +1,20 @@
+{
+  "name": "threads",
+  "description": "Prepare a Threads post payload from provided text. Use when the user wants to publish to Threads and needs a deterministic preview payload.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string" },
+      "includeLink": { "type": "boolean", "default": false }
+    },
+    "required": ["text"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "postText": { "type": "string" },
+      "includeLink": { "type": "boolean" }
+    }
+  },
+  "permissions": {}
+}
