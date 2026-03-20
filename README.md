@@ -39,9 +39,7 @@ OpenRing is a local automation Agent that freely navigates the Android system wi
 
 ## 📈 Activity & Stars
 
-[![Star History Chart](https://api.star-history.com/svg?repos=YourOrg/OpenRing&type=Date)](https://star-history.com/#YourOrg/OpenRing&Date)
-
-*(Note: Replace `YourOrg/OpenRing` with your actual GitHub repository path after publishing)*
+[![Star History Chart](https://api.star-history.com/svg?repos=SunZhi-Will/OpenRing&type=Date)](https://star-history.com/#SunZhi-Will/OpenRing&Date)
 
 ---
 
@@ -69,7 +67,9 @@ OpenRing/
 │       ├── data/         # Room Database, DAOs, ScriptStore
 │       ├── domain/       # Use cases: ScriptExecutor, Scheduler logic
 │       └── ui/           # Jetpack Compose screens (Editor, History, Settings)
-├── docs/                 # Documentation (PRD, Backlog, Script Format)
+├── docs/                 # Documentation
+│   ├── product/          # PRD, Backlog, Project Plan
+│   └── technical/        # Script Format, Protocol, Team Assignment
 └── gradle/               # Build configuration
 ```
 
@@ -88,7 +88,7 @@ Ready to start contributing or build OpenRing yourself? Follow these steps:
 
 ### 2. Clone the repo
 ```bash
-git clone https://github.com/YourOrg/OpenRing.git
+git clone https://github.com/SunZhi-Will/OpenRing.git
 cd OpenRing
 ```
 
@@ -106,10 +106,10 @@ You can open the project directly via Android Studio and click `Run`, or compile
 
 | Document | Description |
 |----------|-------------|
-| [PROJECT_PLAN.md](docs/PROJECT_PLAN.md) | Project overview, architecture design, milestones, and potential risks |
-| [PRODUCT_BACKLOG.md](docs/PRODUCT_BACKLOG.md) | Product feature backlog, user stories, and priority evaluation |
-| [SCRIPT_FORMAT.md](docs/SCRIPT_FORMAT.md) | JSON format definition and action list supported by the script engine |
-| [TEAM_ASSIGNMENT.md](docs/TEAM_ASSIGNMENT.md) | Team assignments and system Prompt references for AI development |
+| [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md) | Project overview, architecture design, milestones, and potential risks |
+| [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md) | Product feature backlog, user stories, and priority evaluation |
+| [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md) | JSON format definition and action list supported by the script engine |
+| [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | Team assignments and system Prompt references for AI development |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Complete open-source contribution guide and PR submission process |
 
 ---

@@ -41,9 +41,7 @@ OpenRing 是一款能在 Android 系統上自由穿梭、擁有「Ring 0」般�
 
 ## 📈 專案熱度
 
-[![Star History Chart](https://api.star-history.com/svg?repos=YourOrg/OpenRing&type=Date)](https://star-history.com/#YourOrg/OpenRing&Date)
-
-*(注意：發布後請將連結中的 `YourOrg/OpenRing` 替換為您的實際 GitHub 專案路徑)*
+[![Star History Chart](https://api.star-history.com/svg?repos=SunZhi-Will/OpenRing&type=Date)](https://star-history.com/#SunZhi-Will/OpenRing&Date)
 
 ---
 
@@ -73,7 +71,9 @@ OpenRing/
 │       ├── data/         # Room Database, DAOs, ScriptStore
 │       ├── domain/       # 使用案例: ScriptExecutor, Scheduler 邏輯
 │       └── ui/           # Jetpack Compose 畫面 (Editor, History, Settings)
-├── docs/                 # 文件 (PRD, Backlog, Script Format)
+├── docs/                 # 文件
+│   ├── product/          # PRD, Backlog, 專案規劃
+│   └── technical/        # 腳本格式, 團隊分工等技術文件
 └── gradle/               # 建置設定
 ```
 
@@ -92,7 +92,7 @@ OpenRing/
 
 ### 2. 複製專案
 ```bash
-git clone https://github.com/YourOrg/OpenRing.git
+git clone https://github.com/SunZhi-Will/OpenRing.git
 cd OpenRing
 ```
 
@@ -110,10 +110,10 @@ cd OpenRing
 
 | 文件名稱 | 說明 |
 |----------|------|
-| [PROJECT_PLAN.md](docs/PROJECT_PLAN.md) | 專案總覽、架構設計、里程碑規劃與潛在風險 |
-| [PRODUCT_BACKLOG.md](docs/PRODUCT_BACKLOG.md) | 產品功能待辦清單、使用者故事與優先級評估 |
-| [SCRIPT_FORMAT.md](docs/SCRIPT_FORMAT.md) | 腳本引擎支援的 JSON 格式定義與動作清單 |
-| [TEAM_ASSIGNMENT.md](docs/TEAM_ASSIGNMENT.md) | 團隊分工與 AI 開發的系統 Prompt 參考 |
+| [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md) | 專案總覽、架構設計、里程碑規劃與潛在風險 |
+| [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md) | 產品功能待辦清單、使用者故事與優先級評估 |
+| [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md) | 腳本引擎支援的 JSON 格式定義與動作清單 |
+| [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | 團隊分工與 AI 開發的系統 Prompt 參考 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 完整的開源貢獻指南與 PR 提交流程 |
 
 ---
@@ -227,7 +227,7 @@ Ready to start contributing or build OpenRing yourself? Please follow these step
 
 ### 2. Clone the repo
 ```bash
-git clone https://github.com/YourOrg/OpenRing.git
+git clone https://github.com/SunZhi-Will/OpenRing.git
 cd OpenRing
 ```
 
