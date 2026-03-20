@@ -1,0 +1,23 @@
+{
+  "name": "html_metadata_extractor",
+  "description": "Extracts the <title>, description, and OpenGraph image from raw HTML source code. Use this skill when the agent scrapes a webpage and needs to summarize its metadata without reading the entire HTML, which saves tokens.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "htmlString": { 
+        "type": "string",
+        "description": "The raw HTML source code of the webpage"
+      }
+    },
+    "required": ["htmlString"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string" },
+      "description": { "type": "string" },
+      "image": { "type": "string" }
+    }
+  },
+  "permissions": {}
+}

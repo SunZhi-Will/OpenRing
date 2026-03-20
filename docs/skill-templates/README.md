@@ -1,120 +1,89 @@
-# OpenRing 技能外掛程式範本 (QuickJS)
+# OpenRing Skill Plugins (QuickJS)
 
-[English Version Below](#english-version)
+OpenRing Skill Plugins empower the Gemini Agent inside the app with **deterministic logic, custom integrations, and data processing** capabilities. Since the agent's context window is limited and LLMs can hallucinate logic, Skills provide safe, local sandboxed code (running on QuickJS) that the Agent can call reliably.
 
-OpenRing 技能外掛程式是透過下載 ZIP 套件來安裝的。安裝程式預期每個套件 ZIP 內包含：
-
-1. `manifest.json`
-2. `script.js`
-
-這個資料夾提供了一些小型的、可複製並修改的範本，讓團隊成員在開發新技能時不需要猜測套件格式。
-
-## 如何打包技能（ZIP 結構）
-
-對於每個範本目錄，建立一個包含 `manifest.json` 和 `script.js` 在 ZIP 根目錄下的 ZIP 檔案。
-
-預期的 ZIP 結構：
-```text
-your-skill.zip
-└── manifest.json
-└── script.js
-```
-
-## `manifest.json`（建議欄位）
-
-目前的宿主安裝程式只要求 `name` 來衍生 `skillId`，但這個範本使用了 `docs/PRD.md` 中描述的更豐富格式。
-
-最低要求：
-```json
-{ "name": "your_skill_id" }
-```
-
-建議格式：
-```json
-{
-  "name": "your_skill_id",
-  "description": "What this skill does and when it should be used",
-  "inputSchema": { "type": "object", "properties": {}, "required": [] },
-  "outputSchema": { "type": "object", "properties": {} },
-  "permissions": { "network": { "required": true } }
-}
-```
-
-## `script.js` 介面
-
-每個技能模組應該匯出單一入口函式：
-
-```js
-export function run(input) {
-  return { /* output object */ };
-}
-```
-
-回傳值應該是一個可被 JSON 序列化的物件。
-
-## 這個資料夾中的範本
-
-1. `crypto_price_fetcher`：展示了需要 `network` 權限以及穩定的輸出格式。
-2. `text_uppercase`：展示了一個純轉換的技能，不需要任何權限。
-3. `json_reformatter`：展示了架構驅動（schema-driven）的格式化以及確定性的輸出。
+This directory contains templates to help developers and users build powerful Skills for the OpenRing ecosystem.
 
 ---
-<a id="english-version"></a>
 
-# OpenRing Skill Plugin Templates (QuickJS)
+## 🚀 Why Build a Skill?
 
-OpenRing Skill plugins are installed by downloading a ZIP package. The installer expects each package ZIP to contain:
+1. **Deterministic Processing**: Need complex regex extraction or specific math? The LLM might make mistakes, but a JS script won't.
+2. **Data Transformation**: Convert massive raw inputs (like raw HTML or JSON) into small, clean payloads before feeding them back to Gemini, saving tokens.
+3. **Local Tooling**: (Roadmap) Perform network requests, database lookups, or interact with device sensors safely under the user's permission.
 
-1. `manifest.json`
-2. `script.js`
+## 📦 How to Build and Package a Skill
 
-This folder provides a few small, copy-and-modify templates so teammates can build new skills without guessing the package format.
+An OpenRing Skill is simply a `.zip` file containing two files at its root:
 
-## How to package a skill (ZIP layout)
-
-For each template directory, create a ZIP that includes `manifest.json` and `script.js` at the ZIP root.
-
-Expected ZIP structure:
 ```text
-your-skill.zip
-└── manifest.json
-└── script.js
+my_awesome_skill.zip
+├── manifest.json   # Describes the tool to the Gemini Agent (Input/Output schema)
+└── script.js       # The actual JavaScript logic executed by QuickJS
 ```
 
-## `manifest.json` (recommended fields)
+### 1. `manifest.json`
+This is essentially a **Gemini Function Calling Schema**. You must define what the LLM needs to provide (`inputSchema`), what it will get back (`outputSchema`), and what sandbox permissions your script needs.
 
-The current host installer only requires `name` to derive `skillId`, but this template uses the richer format described in `docs/PRD.md`.
-
-Minimal requirement:
-```json
-{ "name": "your_skill_id" }
-```
-
-Recommended shape:
 ```json
 {
-  "name": "your_skill_id",
-  "description": "What this skill does and when it should be used",
-  "inputSchema": { "type": "object", "properties": {}, "required": [] },
-  "outputSchema": { "type": "object", "properties": {} },
-  "permissions": { "network": { "required": true } }
+  "name": "my_skill_name",
+  "description": "Tell the AI EXACTLY when and why to use this skill.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "query": { "type": "string" }
+    },
+    "required": ["query"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "result": { "type": "string" }
+    }
+  },
+  "permissions": {
+    "network": { "required": false }
+  }
 }
 ```
 
-## `script.js` interface
+### 2. `script.js`
+Your script runs inside a lightweight [QuickJS](https://bellard.org/quickjs/) engine on the Android device. 
+- **Rule 1**: It must `export function run(input)`.
+- **Rule 2**: It runs in pure ES2020 JavaScript. There is **NO DOM (`window`, `document`)** and **NO Node.js (`require('fs')`)**.
+- **Rule 3**: Return a JSON-serializable object that matches your `outputSchema`.
 
-Each skill module should export a single entry function:
-
-```js
+```javascript
 export function run(input) {
-  return { /* output object */ };
+  const query = input && input.query ? String(input.query) : "";
+  // Do pure JS logic here...
+  return { result: query.toUpperCase() };
 }
 ```
 
-Return value should be a JSON-serializable object.
+### 3. Zip it
+```bash
+# Inside your skill folder
+zip -j my_awesome_skill.zip manifest.json script.js
+```
+Now users can install `my_awesome_skill.zip` via the OpenRing app's Skills UI!
 
-## Templates in this folder
+---
 
-1. `crypto_price_fetcher`: Demonstrates a `network` permission requirement and a stable output shape.
-2. `text_uppercase`: Demonstrates a pure transform skill with no permissions.
-3. `json_reformatter`: Demonstrates schema-driven formatting and deterministic outputs.
+## 🛠️ Included Templates
+
+Browse the folders in this directory to see different types of Skills:
+
+- **`html_metadata_extractor`**: (Advanced) Shows how to parse raw HTML strings using pure Regex (since there is no DOM parser in QuickJS) to extract titles and meta tags. Saves thousands of tokens for the Agent.
+- **`markdown_to_blocks`**: (Advanced) Parses raw Markdown into a structured JSON AST (Abstract Syntax Tree) so the Agent can query specific sections instead of reading the whole text.
+- **`threads`**: (App Integration) Prepares a specific payload format for another App/Service.
+- **`json_reformatter`**: (Data Transform) Reformats JSON (minify or pretty-print).
+- **`crypto_price_fetcher`**: (Network) A placeholder for fetching data via network permissions (once implemented in the host).
+- **`text_uppercase`**: (Basic) The absolute simplest example of a pure function.
+
+## 🤝 How to Distribute
+1. Build your ZIP file.
+2. Upload it to GitHub Releases, a personal server, or any public URL.
+3. Users add your domain to their OpenRing **Allowed Sources (白名單)**.
+4. The AI or the User can now install it directly via the URL!

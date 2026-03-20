@@ -10,7 +10,7 @@
 
 如果您在 OpenRing 發現了潛在的安全漏洞，我們懇請您以私下且負責任的方式回報。**請勿**開啟公開的 GitHub Issue，以免漏洞被有心人士利用。
 
-- 📧 Email: security@openring.dev
+- 📧 Email: suncodestudio@gmail.com
 - 📝 主旨: `[OpenRing Security] <簡短摘要>`
 
 請在信件中包含以下資訊：
@@ -45,7 +45,7 @@ Security updates are provided on a best-effort basis for the latest `main` branc
 
 Please report vulnerabilities privately and responsibly. Do not open public GitHub issues for security vulnerabilities to prevent exploitation.
 
-- 📧 Email: security@openring.dev
+- 📧 Email: suncodestudio@gmail.com
 - 📝 Subject: `[OpenRing Security] <short summary>`
 
 Include the following information in your report:

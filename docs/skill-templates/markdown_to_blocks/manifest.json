@@ -1,0 +1,30 @@
+{
+  "name": "markdown_to_blocks",
+  "description": "Parses a raw Markdown string into structured JSON blocks (Headers, Paragraphs, Lists). Use this skill when the agent needs to analyze or transform document structures rather than plain text.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "markdown": { 
+        "type": "string",
+        "description": "The raw Markdown text"
+      }
+    },
+    "required": ["markdown"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "blocks": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string" },
+            "content": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "permissions": {}
+}

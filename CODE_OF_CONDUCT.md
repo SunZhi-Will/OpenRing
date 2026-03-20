@@ -34,7 +34,7 @@
 
 ## 執行
 
-虐待、騷擾或其他不可接受行為的實例可向維護者報告：security@openring.dev
+虐待、騷擾或其他不可接受行為的實例可向維護者報告：suncodestudio@gmail.com
 所有投訴將會得到及時和公平的審查和調查。
 
 ## 來源歸屬
@@ -79,7 +79,7 @@ This Code of Conduct applies within all community spaces and also applies when a
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the maintainers at: security@openring.dev. All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the maintainers at: suncodestudio@gmail.com. All complaints will be reviewed and investigated promptly and fairly.
 
 ## Attribution
 
