@@ -78,7 +78,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     // Networking (Gemini Developer API via REST)
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp:5.3.2")
 
     // QuickJS (Skill Plugin Engine)
     // NOTE: `app.cash.quickjs:quickjs-android` 內的 `libquickjs.so` 仍為 4KB LOAD 對齊，
