@@ -6,17 +6,19 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-// llama-kotlin-android 會拉較新的 androidx.core；專案維持 compileSdk 35 時強制對齊既有版本。
+// llama-kotlin-android 會拉較新的 androidx.core；與 compileSdk 36 對齊時強制統一 core 版本。
 configurations.configureEach {
     resolutionStrategy {
-        force("androidx.core:core-ktx:1.15.0")
-        force("androidx.core:core:1.15.0")
+        force("androidx.core:core-ktx:1.18.0")
+        force("androidx.core:core:1.18.0")
     }
 }
 
 android {
     namespace = "com.openring"
-    compileSdk = 35
+    compileSdk = 36
+    // 避免選到損毀的 build-tools（例如 Unity 內建的 35.0.0）；與 compileSdk 36 對齊。
+    buildToolsVersion = "36.0.0"
 
     defaultConfig {
         applicationId = "com.openring"
@@ -49,11 +51,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         compose = true
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
@@ -64,18 +69,18 @@ tasks.matching { it.name.startsWith("lint") }.configureEach {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
-    implementation("androidx.activity:activity-compose:1.9.3")
-    implementation(platform("androidx.compose:compose-bom:2024.11.00"))
+    implementation("androidx.core:core-ktx:1.18.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
+    implementation("androidx.activity:activity-compose:1.13.0")
+    implementation(platform("androidx.compose:compose-bom:2026.03.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.navigation:navigation-compose:2.8.4")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.navigation:navigation-compose:2.9.7")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
 
     // Room
     val roomVersion = "2.8.4"
@@ -90,7 +95,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     // Networking (Gemini Developer API via REST)
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp:5.3.2")
 
     // QuickJS (Skill Plugin Engine)
     // NOTE: `app.cash.quickjs:quickjs-android` 內的 `libquickjs.so` 仍為 4KB LOAD 對齊，
