@@ -115,6 +115,17 @@ You can open the project directly via Android Studio and click `Run`, or compile
 ./gradlew assembleDebug
 ```
 
+The debug APK is written to `app/build/outputs/apk/debug/` (typically `app-debug.apk`).
+
+#### Download prebuilt debug APK (CI)
+
+Each successful run of **Android CI** uploads a **debug APK** as the workflow artifact `openring-debug-apk` (a ZIP containing the `.apk` file).
+
+| Method | Link |
+|--------|------|
+| **Direct download (ZIP, no GitHub login)** | [Latest `openring-debug-apk.zip` via nightly.link](https://nightly.link/SunZhi-Will/OpenRing/workflows/android-ci/main/openring-debug-apk.zip) — unzip locally, then install the `.apk` inside. |
+| **GitHub Actions UI** | [Android CI workflow runs (branch `main`)](https://github.com/SunZhi-Will/OpenRing/actions/workflows/android-ci.yml?query=branch%3Amain) → open a green run → **Artifacts** → `openring-debug-apk` (GitHub may require login to download). |
+
 > **Note**: After installing the App for the first time, you must manually go to the system's "Settings > Accessibility" and enable the **OpenRing Accessibility Service** for the App to function properly.
 
 ---

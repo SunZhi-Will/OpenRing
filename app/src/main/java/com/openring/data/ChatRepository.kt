@@ -121,6 +121,28 @@ class ChatRepository(context: Context) {
         return true
     }
 
+    /**
+     * 刪除一則聊天記錄（訊息、執行 log 由外鍵 CASCADE；session 範圍的記憶須手動清除）。
+     * 若刪除的是目前選中的工作階段，會改選最近一則，沒有則新建。
+     * @return 刪除後目前作用中的 session id
+     */
+    suspend fun deleteSession(sessionId: String): String {
+        db().memoryFactDao().deleteAllForSessionScope(sessionId)
+        db().memoryVectorDao().deleteAllForSessionScope(sessionId)
+        val wasActive = prefs.getString(KEY_ACTIVE_SESSION, null) == sessionId
+        db().chatSessionDao().deleteById(sessionId)
+        if (!wasActive) {
+            return prefs.getString(KEY_ACTIVE_SESSION, null) ?: getOrCreateActiveSessionId()
+        }
+        val remaining = db().chatSessionDao().listRecent(1).firstOrNull()
+        return if (remaining != null) {
+            prefs.edit().putString(KEY_ACTIVE_SESSION, remaining.id).apply()
+            remaining.id
+        } else {
+            createSessionAndSelect()
+        }
+    }
+
     fun messagesToGeminiContents(messages: List<ChatMessageEntity>, maxTurns: Int = 24): List<Content> {
         val tail = if (messages.size > maxTurns) messages.takeLast(maxTurns) else messages
         return tail.map { m ->

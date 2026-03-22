@@ -525,5 +525,30 @@ object ToolSchemas {
             putJsonArray("required") { add(JsonPrimitive("url")) }
         }
     )
+
+    /**
+     * 地端代理：將 [buildTools] 的宣告壓成純文字（含動態 skill_*），供本機模型讀取。
+     */
+    fun buildLocalToolCatalogText(context: Context, maxChars: Int = 1400): String {
+        val decls = buildTools(context).flatMap { it.functionDeclarations }
+        val sb = StringBuilder()
+        for (d in decls) {
+            val desc = (d.description ?: "").replace('\n', ' ').trim().take(120)
+            val argHint = summarizeJsonSchemaPropertyKeys(d.parameters)
+            val line = "- ${d.name}: $desc. args: $argHint\n"
+            if (sb.length + line.length > maxChars) {
+                sb.append("(additional tools omitted for context limit)\n")
+                break
+            }
+            sb.append(line)
+        }
+        return sb.toString().trimEnd()
+    }
+
+    private fun summarizeJsonSchemaPropertyKeys(schema: JsonObject): String {
+        val props = schema["properties"] as? JsonObject ?: return "{}"
+        if (props.isEmpty()) return "{}"
+        return props.keys.sorted().joinToString(", ", prefix = "{ ", postfix = " }")
+    }
 }
 

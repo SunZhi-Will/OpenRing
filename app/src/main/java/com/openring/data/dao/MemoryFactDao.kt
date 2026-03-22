@@ -32,4 +32,7 @@ interface MemoryFactDao {
 
     @Query("DELETE FROM memory_facts WHERE id = :id")
     suspend fun deleteById(id: String)
+
+    @Query("DELETE FROM memory_facts WHERE scope = 'session' AND sessionId = :sessionId")
+    suspend fun deleteAllForSessionScope(sessionId: String)
 }

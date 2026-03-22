@@ -21,4 +21,7 @@ interface ChatSessionDao {
 
     @Query("SELECT * FROM chat_sessions ORDER BY updatedAtMs DESC LIMIT :limit")
     suspend fun listRecent(limit: Int): List<ChatSession>
+
+    @Query("DELETE FROM chat_sessions WHERE id = :id")
+    suspend fun deleteById(id: String)
 }

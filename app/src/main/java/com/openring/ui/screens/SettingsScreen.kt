@@ -3,13 +3,10 @@ package com.openring.ui.screens
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.provider.Settings
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,7 +32,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Search
@@ -43,6 +39,7 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -59,17 +56,20 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
@@ -87,6 +87,7 @@ import androidx.compose.ui.zIndex
 import com.openring.ui.theme.Spacing
 import com.openring.R
 import com.openring.security.ApiKeyStore
+import com.openring.localmodel.LocalLlmEngine
 import com.openring.localmodel.LocalModelCatalog
 import com.openring.localmodel.LocalModelDownloader
 import com.openring.settings.ModelOption
@@ -99,7 +100,9 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(
+    onBack: () -> Unit,
+) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val keyStore = remember { ApiKeyStore(context) }
     val modelStore = remember { ModelStore(context) }
@@ -143,7 +146,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("設定") },
+                title = { Text("模型") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
@@ -164,49 +167,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                 .padding(horizontal = 16.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
-            val overlayGranted = Settings.canDrawOverlays(context)
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("懸浮窗權限", style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        if (overlayGranted) "已開啟：AI 執行時可顯示懸浮中斷按鈕"
-                        else "未開啟：將無法顯示懸浮中斷按鈕",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    TextButton(
-                        onClick = {
-                            try {
-                                context.startActivity(
-                                    Intent(
-                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                        Uri.parse("package:${context.packageName}")
-                                    ).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                )
-                            } catch (e: Exception) {
-                                Log.w("OpenRing", "無法開啟懸浮窗權限設定頁", e)
-                            }
-                        }
-                    ) {
-                        Text(if (overlayGranted) "前往權限頁（重新確認）" else "前往開啟權限")
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text("模型", style = MaterialTheme.typography.titleMedium)
             Text(
-                "長按任一模型卡可拖拉上下排序（除錯日誌 tag: OpenRingDrag）",
+                "長按卡片後上下拖曳可調整優先順序。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -275,6 +237,11 @@ fun SettingsScreen(onBack: () -> Unit) {
             initial = editInitial,
             initialKey = currentKey,
             onDismiss = { editDialogModelId = null },
+            onRequestDelete = {
+                val id = editTarget.id
+                editDialogModelId = null
+                deleteDialogModelId = id
+            },
             onConfirm = { chosen, key ->
                 if (chosen.provider == ModelProvider.LOCAL) {
                     val dup = models.any {
@@ -319,16 +286,22 @@ fun SettingsScreen(onBack: () -> Unit) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val idx = models.indexOfFirst { it.id == deleteTarget.id }
-                        if (idx >= 0) {
-                            if (deleteTarget.provider == "local") {
-                                LocalModelCatalog.deleteDownloaded(context, deleteTarget.model)
-                            }
-                            models.removeAt(idx)
-                            modelStore.saveModels(models.toList())
-                        }
-                        keyStore.clearGeminiApiKeyForModel(deleteTarget.id)
+                        val target = deleteTarget
                         deleteDialogModelId = null
+                        scope.launch {
+                            if (target.provider.equals("local", ignoreCase = true)) {
+                                LocalLlmEngine.unload()
+                                withContext(Dispatchers.IO) {
+                                    LocalModelCatalog.deleteDownloaded(context, target.model)
+                                }
+                            }
+                            val idx = models.indexOfFirst { it.id == target.id }
+                            if (idx >= 0) {
+                                models.removeAt(idx)
+                                modelStore.saveModels(models.toList())
+                            }
+                            keyStore.clearGeminiApiKeyForModel(target.id)
+                        }
                     }
                 ) { Text("刪除") }
             },
@@ -348,12 +321,14 @@ private fun ModelReorderList(
     onRequestEdit: (String) -> Unit,
     onRequestDelete: (String) -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
     val listState = rememberLazyListState()
+    val cardRootTopById = remember { mutableStateMapOf<String, Float>() }
     var draggingItemId by remember { mutableStateOf<String?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
+    var frozenDragCardRootTop by remember { mutableFloatStateOf(0f) }
     var lastMenuFor by remember { mutableStateOf<String?>(null) }
     var boxTopY by remember { mutableStateOf(0f) }
-    var draggedItemY by remember { mutableStateOf(0f) }
     val cardShape = MaterialTheme.shapes.medium
     val shadowSpotColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
     val draggingIndex = draggingItemId?.let { id -> models.indexOfFirst { it.id == id } }?.takeIf { it >= 0 }
@@ -385,7 +360,7 @@ private fun ModelReorderList(
                 fun computeTargetIndex(current: Int): Int {
                     val visible = listState.layoutInfo.visibleItemsInfo
                     val itemSize = visible.firstOrNull { it.index == current }?.size?.toFloat() ?: 80f
-                    val draggedCenterY = draggedItemY - boxTopY + dragOffsetY + itemSize / 2f
+                    val draggedCenterY = frozenDragCardRootTop - boxTopY + dragOffsetY + itemSize / 2f
                     val targetInfo = visible.minByOrNull { info ->
                         val mid = info.offset + info.size / 2f
                         kotlin.math.abs(mid - draggedCenterY)
@@ -393,9 +368,10 @@ private fun ModelReorderList(
                     return targetInfo?.index?.coerceIn(0, models.lastIndex) ?: current
                 }
                 val dragHandleModifier = Modifier.pointerInput(item.id) {
-                    detectDragGestures(
+                    detectDragGesturesAfterLongPress(
                         onDragStart = {
-                            Log.d("OpenRingDrag", "onDragStart id=${item.id} label=${item.label}")
+                            haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                            frozenDragCardRootTop = cardRootTopById[item.id] ?: 0f
                             draggingItemId = item.id
                             dragOffsetY = 0f
                         },
@@ -403,11 +379,10 @@ private fun ModelReorderList(
                             val current = models.indexOfFirst { it.id == draggingItemId }.takeIf { it >= 0 } ?: run {
                                 draggingItemId = null
                                 dragOffsetY = 0f
-                                return@detectDragGestures
+                                return@detectDragGesturesAfterLongPress
                             }
                             val targetIndex = computeTargetIndex(current)
                             if (targetIndex != current) {
-                                Log.d("OpenRingDrag", "drop: move from $current to $targetIndex")
                                 reorderToTarget(current, targetIndex)
                             }
                             draggingItemId = null
@@ -420,16 +395,14 @@ private fun ModelReorderList(
                         onDrag = { change, dragAmount ->
                             change.consume()
                             dragOffsetY += dragAmount.y
-                            val current = models.indexOfFirst { it.id == draggingItemId }.takeIf { it >= 0 } ?: return@detectDragGestures
-                            val targetIndex = computeTargetIndex(current)
-                            if (targetIndex != current) reorderToTarget(current, targetIndex)
                         }
                     )
                 }
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .onGloballyPositioned { if (isDragging) draggedItemY = it.boundsInRoot().top }
+                        .then(dragHandleModifier)
+                        .onGloballyPositioned { cardRootTopById[item.id] = it.boundsInRoot().top }
                         .graphicsLayer { alpha = if (isDragging) 0f else 1f },
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
@@ -445,8 +418,7 @@ private fun ModelReorderList(
                         onMenuClick = { lastMenuFor = if (menuExpanded) null else item.id },
                         onRequestEdit = { onRequestEdit(item.id) },
                         onRequestDelete = { onRequestDelete(item.id) },
-                        onDismissMenu = { lastMenuFor = null },
-                        dragHandleModifier = dragHandleModifier
+                        onDismissMenu = { lastMenuFor = null }
                     )
                 }
         }
@@ -459,7 +431,7 @@ private fun ModelReorderList(
             downloadingOptionId = downloadingOptionId,
             downloadProgress = downloadProgress,
             onRequestDownload = onRequestDownload,
-            draggedItemY = draggedItemY,
+            dragAnchorRootY = frozenDragCardRootTop,
             boxTopY = boxTopY,
             dragOffsetY = dragOffsetY,
             cardShape = cardShape,
@@ -477,7 +449,7 @@ private fun DraggingOverlayIfNeeded(
     downloadingOptionId: String?,
     downloadProgress: Float?,
     onRequestDownload: (String) -> Unit,
-    draggedItemY: Float,
+    dragAnchorRootY: Float,
     boxTopY: Float,
     dragOffsetY: Float,
     cardShape: androidx.compose.ui.graphics.Shape,
@@ -492,7 +464,7 @@ private fun DraggingOverlayIfNeeded(
             downloading = downloadingOptionId == item.id,
             downloadProgress = if (downloadingOptionId == item.id) downloadProgress else null,
             onRequestDownload = { onRequestDownload(item.id) },
-            draggedItemY = draggedItemY,
+            dragAnchorRootY = dragAnchorRootY,
             boxTopY = boxTopY,
             dragOffsetY = dragOffsetY,
             cardShape = cardShape,
@@ -508,7 +480,7 @@ private fun DraggingOverlay(
     downloading: Boolean,
     downloadProgress: Float?,
     onRequestDownload: () -> Unit,
-    draggedItemY: Float,
+    dragAnchorRootY: Float,
     boxTopY: Float,
     dragOffsetY: Float,
     cardShape: androidx.compose.ui.graphics.Shape,
@@ -524,7 +496,7 @@ private fun DraggingOverlay(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .offset { IntOffset(0, (draggedItemY - boxTopY + dragOffsetY).roundToInt()) }
+                .offset { IntOffset(0, (dragAnchorRootY - boxTopY + dragOffsetY).roundToInt()) }
                 .shadow(12.dp, cardShape, spotColor = shadowSpotColor)
                 .graphicsLayer {
                     scaleX = 1.02f
@@ -562,7 +534,6 @@ private fun ModelListCardContent(
     onRequestDelete: () -> Unit,
     onDismissMenu: () -> Unit,
     showMenu: Boolean = true,
-    dragHandleModifier: Modifier = Modifier
 ) {
     Row(
         modifier = Modifier
@@ -571,22 +542,6 @@ private fun ModelListCardContent(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Box(
-            modifier = dragHandleModifier
-                .minimumInteractiveComponentSize()
-                .clip(MaterialTheme.shapes.small)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                .padding(4.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Default.DragHandle,
-                contentDescription = "拖拉排序",
-                modifier = Modifier.size(24.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
         Icon(
             painter = painterResource(drawableResForProvider(providerFromString(item.provider))),
             contentDescription = null,
@@ -808,6 +763,7 @@ private fun ModelUpsertDialog(
     initialKey: String = "",
     onDismiss: () -> Unit,
     onConfirm: (KnownModel, String) -> Unit,
+    onRequestDelete: (() -> Unit)? = null,
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var showModelPicker by remember { mutableStateOf(false) }
@@ -919,6 +875,18 @@ private fun ModelUpsertDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+
+                if (initial != null && onRequestDelete != null) {
+                    TextButton(
+                        onClick = onRequestDelete,
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("刪除此模型")
+                    }
                 }
             }
         },

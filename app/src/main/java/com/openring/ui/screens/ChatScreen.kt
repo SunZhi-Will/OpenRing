@@ -35,8 +35,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Description
@@ -86,14 +88,15 @@ import android.widget.Toast
 import com.openring.agent.ActiveChatContext
 import com.openring.agent.ChatLogEntry
 import com.openring.agent.ExecutionLogStore
+import com.openring.agent.LocalReActCoordinator
 import com.openring.agent.ReActCoordinator
 import com.openring.agent.RunCancellationRegistry
+import com.openring.agent.ToolSchemas
 import com.openring.core.OverlayService
 import com.openring.data.ChatRepository
 import com.openring.data.MemoryRepository
+import com.openring.data.model.ChatMessageEntity
 import com.openring.data.model.ChatSession
-import com.openring.localmodel.LocalLlmChatPrompt
-import com.openring.localmodel.LocalLlmEngine
 import com.openring.localmodel.LocalModelCatalog
 import com.openring.settings.AiPromptStore
 import com.openring.security.ApiKeyStore
@@ -119,12 +122,14 @@ fun ChatScreen(
     onNavigateToWorkflows: () -> Unit,
     onNavigateToSkills: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToExecutionLog: () -> Unit
+    onNavigateToExecutionLog: () -> Unit,
+    onNavigateToPermissions: () -> Unit,
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val coordinator = remember { ReActCoordinator(context) }
+    val localReActCoordinator = remember { LocalReActCoordinator(context) }
     val chatRepository = remember { ChatRepository(context) }
     val memoryRepository = remember { MemoryRepository(context) }
     val keyStore = remember { ApiKeyStore(context) }
@@ -163,6 +168,7 @@ fun ChatScreen(
     var sessionSheetOpen by remember { mutableStateOf(false) }
     var moreMenuExpanded by remember { mutableStateOf(false) }
     var sessionsForPicker by remember { mutableStateOf<List<ChatSession>>(emptyList()) }
+    var sessionPendingDelete by remember { mutableStateOf<ChatSession?>(null) }
     val sessionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(Unit) {
@@ -427,7 +433,7 @@ fun ChatScreen(
                                 val placeholderId = UUID.randomUUID().toString()
                                 try {
                                     withContext(Dispatchers.Main) {
-                                        updateProcessingText("本機模型：${opt.label} (${opt.model})")
+                                        updateProcessingText("本機代理：${opt.label} (${opt.model})")
                                         messages.add(
                                             ChatMessage(
                                                 id = placeholderId,
@@ -447,38 +453,63 @@ fun ChatScreen(
                                         Log.w("OpenRing", "Local memory injection failed", e)
                                         ""
                                     }
-                                    val style = LocalLlmChatPrompt.styleForCatalogId(opt.model)
-                                    val prompt = LocalLlmChatPrompt.buildPrompt(
-                                        style = style,
+                                    val toolCatalog = ToolSchemas.buildLocalToolCatalogText(context)
+                                    val r = localReActCoordinator.run(
+                                        catalogId = opt.model,
+                                        userText = trimmed,
+                                        priorContents = priorContents,
                                         systemPrompt = aiPromptStore.getSystemPrompt(),
                                         memoryInjection = memInject,
-                                        priorContents = priorContents,
-                                        currentUserMessage = trimmed
-                                    )
-                                    val out = LocalLlmEngine.generateStreaming(
-                                        context = context,
-                                        catalogId = opt.model,
-                                        prompt = prompt,
-                                        isCancelled = { RunCancellationRegistry.isCancelled(runSessionId) },
-                                        onAccumulatedText = { acc ->
-                                            scope.launch(Dispatchers.Main) {
-                                                val idx = messages.indexOfFirst { it.id == placeholderId }
-                                                if (idx >= 0) {
-                                                    val old = messages[idx]
-                                                    messages[idx] = old.copy(text = acc)
+                                        toolCatalogText = toolCatalog,
+                                        shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
+                                        onTurn = { turn ->
+                                            scope.launch(Dispatchers.Main) { recordTurnToLog(turn) }
+                                            scope.launch(Dispatchers.IO) {
+                                                val toolName = turn.toolName ?: return@launch
+                                                when (turn.role) {
+                                                    "tool_call" -> {
+                                                        val args = turn.toolResult ?: buildJsonObject { }
+                                                        chatRepository.appendExecutionLog(
+                                                            chatSid,
+                                                            ChatLogEntry.ToolCall(
+                                                                toolName = toolName,
+                                                                args = args,
+                                                                createdAtMs = nowMs()
+                                                            )
+                                                        )
+                                                    }
+
+                                                    "tool_result" -> {
+                                                        val resultObj = turn.toolResult ?: buildJsonObject { }
+                                                        chatRepository.appendExecutionLog(
+                                                            chatSid,
+                                                            ChatLogEntry.ToolResult(
+                                                                toolName = toolName,
+                                                                result = sanitizeJsonForLog(toolName, resultObj),
+                                                                createdAtMs = nowMs()
+                                                            )
+                                                        )
+                                                    }
                                                 }
                                             }
-                                        }
+                                        },
+                                        onStatus = { msg ->
+                                            scope.launch(Dispatchers.Main) {
+                                                updateProcessingText(msg)
+                                                val idx = messages.indexOfFirst { it.id == placeholderId }
+                                                if (idx >= 0) {
+                                                    messages[idx] = messages[idx].copy(text = msg)
+                                                }
+                                            }
+                                        },
                                     )
-                                    val finalOut = out.trim().ifBlank { "（本機模型未產生內容）" }
                                     withContext(Dispatchers.Main) {
                                         val idx = messages.indexOfFirst { it.id == placeholderId }
                                         if (idx >= 0) {
-                                            val old = messages[idx]
-                                            messages[idx] = old.copy(text = finalOut)
+                                            messages[idx] = messages[idx].copy(text = r.finalText)
                                         }
                                     }
-                                    return@withContext finalOut
+                                    return@withContext r.finalText
                                 } catch (e: Exception) {
                                     Log.e(
                                         "OpenRing",
@@ -510,7 +541,7 @@ fun ChatScreen(
                         }
                     }
                     lastError
-                        ?: "所有模型都不可用：請到設定新增 Gemini（含 API Key）或地端模型（並完成下載），並確認清單順序。"
+                        ?: "所有模型都不可用：請到模型頁新增 Gemini（含 API Key）或地端模型（並完成下載），並確認清單順序。"
                 }
                 if (streamedLocalModelMessageId != null) {
                     withContext(Dispatchers.IO) {
@@ -598,7 +629,7 @@ fun ChatScreen(
                             }
                         }
                     ) {
-                        Icon(Icons.Default.List, contentDescription = "工作階段列表")
+                        Icon(Icons.Default.List, contentDescription = "聊天記錄列表")
                     }
                     IconButton(
                         onClick = {
@@ -627,6 +658,16 @@ fun ChatScreen(
                             expanded = moreMenuExpanded,
                             onDismissRequest = { moreMenuExpanded = false }
                         ) {
+                            DropdownMenuItem(
+                                text = { Text("權限與無障礙") },
+                                onClick = {
+                                    moreMenuExpanded = false
+                                    onNavigateToPermissions()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Security, contentDescription = null)
+                                }
+                            )
                             DropdownMenuItem(
                                 text = { Text("排程 / 工作流") },
                                 onClick = {
@@ -658,7 +699,7 @@ fun ChatScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("設定") },
+                                text = { Text("模型") },
                                 onClick = {
                                     moreMenuExpanded = false
                                     onNavigateToSettings()
@@ -682,13 +723,13 @@ fun ChatScreen(
             // Chat 警告只顯示一個：優先提示「未選模型」，其次提示「未填 Key」
             val warning = when {
                 modelChain.isEmpty() ->
-                    "尚未新增任何模型：請到設定新增雲端模型（API Key）或地端模型（可設定多個作為備援）。"
+                    "尚未新增任何模型：請到模型頁新增雲端模型（API Key）或地端模型（可設定多個作為備援）。"
                 !hasGeminiWithKey && anyLocalNotDownloaded ->
-                    "有地端模型尚未下載：請到設定在該模型旁點擊下載圖示，完成後再試。"
+                    "有地端模型尚未下載：請到模型頁在該模型旁點擊下載圖示，完成後再試。"
                 !canRunChat ->
                     "目前無法開始聊天：請（1）為至少一個 Gemini 填入 API Key，或（2）新增地端模型並完成 GGUF 下載。"
                 !hasGeminiWithKey && runnableLocal.isNotEmpty() ->
-                    "目前僅使用本機文字模型：可對話，但不支援 ReAct／工具與雲端視覺。需要時請在設定加入 Gemini 並拖曳調整優先順序。"
+                    "目前僅使用本機文字模型：可對話，但不支援 ReAct／工具與雲端視覺。需要時請在模型頁加入 Gemini 並拖曳調整優先順序。"
                 !hasGeminiWithKey ->
                     "尚未設定 Gemini API Key：若清單僅有地端模型請完成下載；若需雲端備援請新增 Gemini 並輸入 Key。"
                 else -> null
@@ -717,37 +758,7 @@ fun ChatScreen(
                             style = MaterialTheme.typography.bodySmall
                         )
                         TextButton(onClick = onNavigateToSettings) {
-                            Text("前往設定")
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(Spacing.sm))
-            }
-            if (!Settings.canDrawOverlays(context)) {
-                val (container, content) =
-                    MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.md),
-                    shape = MaterialTheme.shapes.large,
-                    color = container,
-                    contentColor = content
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            "尚未開啟懸浮窗權限：無法顯示 AI 執行中的懸浮中斷按鈕。",
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        TextButton(onClick = { openOverlayPermissionPage() }) {
-                            Text("開啟權限")
+                            Text("前往模型頁")
                         }
                     }
                 }
@@ -949,17 +960,69 @@ fun ChatScreen(
         )
     }
 
+    sessionPendingDelete?.let { pending ->
+        AlertDialog(
+            onDismissRequest = { sessionPendingDelete = null },
+            title = { Text("刪除聊天記錄") },
+            text = {
+                Text(
+                    "確定要刪除「${pending.title.ifBlank { "未命名對話" }}」？此操作無法復原。"
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val target = pending
+                        sessionPendingDelete = null
+                        scope.launch {
+                            val wasViewing = activeChatSessionId == target.id
+                            val newActiveId: String
+                            val refreshed: List<ChatSession>
+                            val rows: List<ChatMessageEntity>
+                            val logs: List<ChatLogEntry>
+                            withContext(Dispatchers.IO) {
+                                newActiveId = chatRepository.deleteSession(target.id)
+                                refreshed = chatRepository.listSessions(100)
+                                if (wasViewing) {
+                                    rows = chatRepository.getMessages(newActiveId)
+                                    logs = chatRepository.loadExecutionLog(newActiveId)
+                                } else {
+                                    rows = emptyList()
+                                    logs = emptyList()
+                                }
+                            }
+                            sessionsForPicker = refreshed
+                            if (wasViewing) {
+                                activeChatSessionId = newActiveId
+                                messages.clear()
+                                for (m in rows) {
+                                    messages.add(
+                                        ChatMessage(
+                                            id = m.id,
+                                            role = m.role,
+                                            text = m.body,
+                                            createdAtMs = m.createdAtMs
+                                        )
+                                    )
+                                }
+                                ExecutionLogStore.replaceAll(logs)
+                            }
+                            Toast.makeText(context, "已刪除聊天記錄", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) { Text("刪除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { sessionPendingDelete = null }) { Text("取消") }
+            }
+        )
+    }
+
     if (sessionSheetOpen) {
         ModalBottomSheet(
             onDismissRequest = { sessionSheetOpen = false },
             sheetState = sessionSheetState
         ) {
-            Text(
-                text = "工作階段",
-                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -975,6 +1038,19 @@ fun ChatScreen(
                             )
                         },
                         supportingContent = { Text(formatTime(s.updatedAtMs)) },
+                        trailingContent = {
+                            IconButton(
+                                onClick = {
+                                    if (running) {
+                                        Toast.makeText(context, "執行中請稍候", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        sessionPendingDelete = s
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = "刪除此聊天記錄")
+                            }
+                        },
                         modifier = Modifier.clickable {
                             if (running) {
                                 Toast.makeText(context, "執行中請稍候", Toast.LENGTH_SHORT).show()

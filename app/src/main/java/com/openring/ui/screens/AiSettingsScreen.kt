@@ -89,14 +89,6 @@ fun AiSettingsScreen(
             }
 
             item {
-                Text(
-                    "提示：是否允許 AI 修改的開關已移到 System Prompt 編輯頁。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            item {
                 SettingsNavCard(
                     icon = Icons.Default.Lock,
                     title = "道德",

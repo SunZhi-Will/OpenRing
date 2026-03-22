@@ -23,4 +23,7 @@ interface MemoryVectorDao {
 
     @Query("SELECT COUNT(*) FROM memory_vector_chunks")
     suspend fun countAll(): Long
+
+    @Query("DELETE FROM memory_vector_chunks WHERE scope = 'session' AND sessionId = :sessionId")
+    suspend fun deleteAllForSessionScope(sessionId: String)
 }

@@ -5,12 +5,9 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
-import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequest
-import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.openring.data.model.Schedule
 import com.openring.core.AlwaysOnSchedulerService
@@ -63,10 +60,11 @@ class Scheduler(private val context: Context) {
                 )
             }
             "interval" -> {
-                val workRequest = createIntervalWork(scriptId, schedule.minutes)
-                WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                // PeriodicWork 最短間隔為 15 分鐘；改為 OneTime 鏈式排程才能支援每分鐘等短間隔，並與 daily/hourly 一樣在 Worker 成功後續排。
+                val workRequest = createIntervalOneTimeWork(scriptId, schedule.minutes)
+                WorkManager.getInstance(context).enqueueUniqueWork(
                     workName(scriptId),
-                    ExistingPeriodicWorkPolicy.REPLACE,
+                    ExistingWorkPolicy.REPLACE,
                     workRequest
                 )
             }
@@ -126,12 +124,11 @@ class Scheduler(private val context: Context) {
             .build()
     }
 
-    private fun createIntervalWork(scriptId: String, minutes: Int): PeriodicWorkRequest {
-        return PeriodicWorkRequestBuilder<ScriptScheduledWorker>(
-            minutes.toLong().coerceAtLeast(15),
-            TimeUnit.MINUTES
-        )
+    private fun createIntervalOneTimeWork(scriptId: String, minutes: Int): OneTimeWorkRequest {
+        val delayMs = TimeUnit.MINUTES.toMillis(minutes.toLong().coerceAtLeast(1))
+        return OneTimeWorkRequestBuilder<ScriptScheduledWorker>()
             .setInputData(androidx.work.workDataOf("scriptId" to scriptId))
+            .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
             .addTag(WORK_TAG)
             .build()
     }

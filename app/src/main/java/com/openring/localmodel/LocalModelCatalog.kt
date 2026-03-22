@@ -62,9 +62,25 @@ object LocalModelCatalog {
         return expectedFile(context, entry).exists() && expectedFile(context, entry).length() > 0L
     }
 
+    /**
+     * 刪除已下載的 GGUF 與未完成的下載暫存（.part）。
+     * [catalogId] 通常為目錄條目 id；若已無法對應目錄，可傳檔名（不含路徑）作為後備。
+     */
     fun deleteDownloaded(context: Context, catalogId: String) {
-        val entry = byId(catalogId) ?: return
-        expectedFile(context, entry).takeIf { it.exists() }?.delete()
-        File(localModelsDir(context), "${entry.fileName}.part").takeIf { it.exists() }?.delete()
+        val dir = localModelsDir(context)
+        val dirPath = dir.canonicalPath
+        val entry = byId(catalogId)
+        if (entry != null) {
+            expectedFile(context, entry).takeIf { it.isFile }?.delete()
+            File(dir, "${entry.fileName}.part").takeIf { it.exists() }?.delete()
+            return
+        }
+        val name = catalogId.trim()
+        if (name.isEmpty() || name.contains("..") || name.contains('/') || name.contains('\\')) return
+        val f = File(dir, name).canonicalFile
+        if (f.parentFile?.canonicalPath == dirPath && f.isFile) f.delete()
+        File(dir, "${name}.part").canonicalFile
+            .takeIf { it.parentFile?.canonicalPath == dirPath && it.isFile }
+            ?.delete()
     }
 }

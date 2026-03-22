@@ -117,6 +117,17 @@ cd OpenRing
 ./gradlew assembleDebug
 ```
 
+除錯版 APK 會輸出到 `app/build/outputs/apk/debug/`（常見檔名為 `app-debug.apk`）。
+
+#### 下載預先建置的除錯版 APK（CI）
+
+每次 **Android CI** 成功執行後，會將 **debug APK** 以 workflow 產物 **`openring-debug-apk`** 上傳（ZIP 內含 `.apk`）。
+
+| 方式 | 連結 |
+|--------|------|
+| **直連下載（ZIP，無需登入 GitHub）** | [透過 nightly.link 取得最新 `openring-debug-apk.zip`](https://nightly.link/SunZhi-Will/OpenRing/workflows/android-ci/main/openring-debug-apk.zip) — 解壓縮後安裝其中的 `.apk`。 |
+| **GitHub Actions 頁面** | [Android CI 執行紀錄（`main` 分支）](https://github.com/SunZhi-Will/OpenRing/actions/workflows/android-ci.yml?query=branch%3Amain) → 選擇成功的執行 → **Artifacts** → `openring-debug-apk`（自 GitHub 下載時可能需登入）。 |
+
 > **注意**：首次安裝 App 後，請務必前往系統的「設定 > 無障礙設定 (Accessibility)」中，手動啟用 **OpenRing Accessibility Service**，App 才能正常運作。
 
 ---

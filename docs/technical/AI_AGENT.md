@@ -9,7 +9,7 @@ This document describes the **chat-driven automation agent** layer: how the app 
 1. **User** sends a message in **Chat** (`ChatScreen`).
 2. The app walks the **model chain** from settings (`ModelStore`): typically **Gemini** (BYOK) and/or **local** models.
 3. **Gemini path**: `ReActCoordinator` runs a multi-turn **ReAct** loop with Gemini function calling; tools are executed by `ToolDispatcher` and results are fed back to the model.
-4. **Local path**: `LocalLlmEngine` runs **text-only** inference (no native tool loop inside the GGUF); streaming tokens update the UI in real time.
+4. **Local path**: `LocalReActCoordinator` runs a **text JSON** agent loop: the GGUF model must reply with a single JSON object (`final` or `tool_calls`); the app parses it, dispatches via `ToolDispatcher`, shrinks large UI results with `shrinkToolResultForModel`, and appends rounds using `LocalLlmChatPrompt.appendAgentToolRound`. This is **not** native function calling inside the runtime—small models may emit invalid JSON and fall back to treating the output as plain text.
 
 ---
 
@@ -18,7 +18,7 @@ This document describes the **chat-driven automation agent** layer: how the app 
 | Provider | Role | Notes |
 |----------|------|--------|
 | **Gemini** | Primary agent brain (cloud) | Requires API key per model entry (`ApiKeyStore`); tools use `ActiveChatContext` for keys and model id. |
-| **Local (GGUF)** | Offline / privacy-friendly chat | Curated catalog in `LocalModelCatalog` (download URLs + filenames); inference via `llama-kotlin-android` (`LlamaModel`). Context size and max tokens are tuned per catalog id (`localInferenceParamsForCatalog`). |
+| **Local (GGUF)** | Offline agent + chat | Same inference stack as above; chat uses `LocalReActCoordinator` + `ToolSchemas.buildLocalToolCatalogText` so tools match the Gemini schema names. No continuous-standby state machine (Gemini-only). |
 
 Chat prompts for local models are formatted per family in `LocalLlmChatPrompt` (e.g. ChatML for Qwen, Phi-3–style markers, Gemma 2 turn tags, TinyLlama-style blocks).
 
@@ -63,6 +63,8 @@ Used both for **Gemini** tool-result shrinking and for **`summarize_view_tree`**
 | Tool dispatch | `app/src/main/java/com/openring/agent/ToolDispatcher.kt` |
 | UI tree compaction | `app/src/main/java/com/openring/agent/UiTreeCompact.kt` |
 | Local GGUF engine | `app/src/main/java/com/openring/localmodel/LocalLlmEngine.kt` |
+| Local JSON ReAct loop | `app/src/main/java/com/openring/agent/LocalReActCoordinator.kt`, `LocalAgentResponseParser.kt` |
+| Tool result shrinking (shared) | `app/src/main/java/com/openring/agent/ToolResultShrink.kt` |
 | Local prompts | `app/src/main/java/com/openring/localmodel/LocalLlmChatPrompt.kt` |
 | Model catalog / downloads | `app/src/main/java/com/openring/localmodel/LocalModelCatalog.kt`, `LocalModelDownloader.kt` |
 | Chat UI | `app/src/main/java/com/openring/ui/screens/ChatScreen.kt` |
@@ -71,8 +73,10 @@ Used both for **Gemini** tool-result shrinking and for **`summarize_view_tree`**
 
 ## 6. Limitations (intentional)
 
-- **Local GGUF** path does not execute the full Gemini tool loop; it is **plain text** continuation with history + system/memory injected as text.
+- **Local GGUF** uses a **separate** JSON-in-text tool loop (not Gemini function calling). It does **not** replicate Gemini’s continuous-chat / standby heuristics; `describe_screen` still needs a Gemini key when invoked from a tool.
+- **Prompt length**: `LocalLlmEngine` clips prompts to a conservative character budget derived from the loaded model’s `contextSize` and `maxTokens` to avoid native crashes from oversized context; the local tool catalog is also capped (`ToolSchemas.buildLocalToolCatalogText`).
+- **Threading**: `llama-kotlin-android`’s `LlamaModel` loads on `Dispatchers.IO` and runs generation on `Dispatchers.Default`, which breaks JNI thread affinity and caused `SIGSEGV`. `LocalLlmEngine` instead uses `LocalLlamaJni` (Java) to call `LlamaNative` static methods, and runs load + generate on one dedicated executor thread.
 - **Vision** (`describe_screen`) depends on **Gemini** credentials and Android screenshot capabilities.
-- **Skills** are invoked through the **Gemini** tool path (`call_skill`), not from the local-only chat path.
+- **Skills** (`call_skill` / `skill_*`) use the same `ToolDispatcher` names as Gemini; the local JSON agent can call them if the model outputs valid `tool_calls`.
 
 For skills packaging and QuickJS behavior, see [SKILLS.md](SKILLS.md) and [skill-templates/README.md](../skill-templates/README.md).

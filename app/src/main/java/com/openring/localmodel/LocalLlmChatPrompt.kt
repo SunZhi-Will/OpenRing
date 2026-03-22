@@ -4,7 +4,7 @@ import com.openring.gemini.model.Content
 
 /**
  * 將 Gemini 格式的對話歷史轉成地端 TinyLlama / 類 Chat 模型可用的純文字 prompt。
- * 不含工具呼叫細節（地端路徑僅純文字續寫）。
+ * 一般聊天為純文字續寫；多輪工具請用 [appendAgentToolRound] 接續 prompt。
  */
 object LocalLlmChatPrompt {
 
@@ -228,6 +228,24 @@ object LocalLlmChatPrompt {
         append(currentBlock)
         append("<end_of_turn>\n")
         append("<start_of_turn>model\n")
+    }
+
+    /**
+     * 本機代理多輪：[buildPrompt] 已結束在 assistant 起頭；接上模型輸出後，插入 User 回合（工具結果）再開新 assistant。
+     */
+    fun appendAgentToolRound(
+        style: Style,
+        modelOutput: String,
+        toolUserMessage: String,
+    ): String {
+        val u = toolUserMessage.trim()
+        val m = modelOutput.trimEnd()
+        return when (style) {
+            Style.TINYLLAMA_BLOCKS -> "\n$m\n### User:\n$u\n### Assistant:\n"
+            Style.CHATML_QWEN -> "$m\n<|im_end|>\n<|im_start|>user\n$u\n<|im_end|>\n<|im_start|>assistant\n"
+            Style.PHI3_INSTRUCT -> "$m\n<|end|>\n<|user|>\n$u\n<|end|>\n<|assistant|>\n"
+            Style.GEMMA2_IT -> "$m\n<end_of_turn>\n<start_of_turn>user\n$u\n<end_of_turn>\n<start_of_turn>model\n"
+        }
     }
 }
 

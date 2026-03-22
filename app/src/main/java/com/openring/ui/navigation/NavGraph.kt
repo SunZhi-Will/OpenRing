@@ -18,6 +18,7 @@ import com.openring.ui.screens.MoralityEditScreen
 import com.openring.ui.screens.SkillsScreen
 import com.openring.ui.screens.SystemPromptEditScreen
 import com.openring.ui.screens.TextSettingEditorScreen
+import com.openring.ui.screens.PermissionsScreen
 
 sealed class Screen(val route: String) {
     data object Chat : Screen("chat")
@@ -25,6 +26,7 @@ sealed class Screen(val route: String) {
     data object AiSettings : Screen("ai_settings")
     data object Skills : Screen("skills")
     data object Settings : Screen("settings")
+    data object Permissions : Screen("permissions")
     data object List : Screen("script_list")
     data object Editor : Screen("script_editor/{scriptId}") {
         fun createRoute(scriptId: String?) = "script_editor/${scriptId ?: "new"}"
@@ -48,7 +50,8 @@ fun OpenRingNavHost(
                 onNavigateToWorkflows = { navController.navigate(Screen.List.route) },
                 onNavigateToSkills = { navController.navigate(Screen.AiSettings.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                onNavigateToExecutionLog = { navController.navigate(Screen.ExecutionLog.route) }
+                onNavigateToExecutionLog = { navController.navigate(Screen.ExecutionLog.route) },
+                onNavigateToPermissions = { navController.navigate(Screen.Permissions.route) }
             )
         }
         composable(Screen.ExecutionLog.route) {
@@ -75,7 +78,14 @@ fun OpenRingNavHost(
         composable(Screen.EditMoralityPolicy.route) {
             MoralityEditScreen(onBack = { navController.popBackStack() })
         }
-        composable(Screen.Settings.route) { SettingsScreen { navController.popBackStack() } }
+        composable(Screen.Settings.route) {
+            SettingsScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Screen.Permissions.route) {
+            PermissionsScreen(onBack = { navController.popBackStack() })
+        }
         composable(Screen.List.route) {
             ScriptListScreen(
                 onBack = { navController.popBackStack() },

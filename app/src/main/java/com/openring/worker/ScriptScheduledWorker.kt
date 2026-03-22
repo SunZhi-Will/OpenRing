@@ -27,9 +27,16 @@ class ScriptScheduledWorker(
 
         return when (result) {
             is ScriptExecutor.ExecutionResult.Success -> {
-                // daily/hourly 採用 OneTimeWorkRequest，需要在執行後續排下一次
-                if (schedule.enabled && (schedule.type == "daily" || schedule.type == "hourly")) {
-                    Scheduler(applicationContext).scheduleScript(scriptId, schedule)
+                // daily/hourly/interval(battery) 採 OneTime 鏈，需在成功後續排；interval(exact) 由 Alarm 先續排故不在此重複排程
+                if (schedule.enabled) {
+                    val chainNext = when (schedule.type) {
+                        "daily", "hourly" -> true
+                        "interval" -> schedule.mode != "exact" && schedule.mode != "always_on"
+                        else -> false
+                    }
+                    if (chainNext) {
+                        Scheduler(applicationContext).scheduleScript(scriptId, schedule)
+                    }
                 }
                 Result.success()
             }

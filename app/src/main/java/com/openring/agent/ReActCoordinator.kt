@@ -472,25 +472,5 @@ class ReActCoordinator(
         }
     }
 
-    private fun shrinkToolResultForModel(toolName: String, original: ToolDispatcher.ToolResult): ToolDispatcher.ToolResult {
-        if (!original.ok) return original
-        if (toolName != "get_view_tree" && toolName != "get_cached_scan") return original
-
-        val data = original.data
-        val timestampMs = data["timestampMs"]?.jsonPrimitive?.content?.toLongOrNull()
-        val root = data["root"]
-
-        // If we can't find root, keep original to avoid breaking the flow unexpectedly.
-        if (root == null || root is kotlinx.serialization.json.JsonNull) return original
-
-        val compactData = UiTreeCompact.compactViewTreeData(data) ?: return original
-
-        return ToolDispatcher.ToolResult(
-            ok = original.ok,
-            code = original.code,
-            message = original.message,
-            data = compactData
-        )
-    }
 }
 

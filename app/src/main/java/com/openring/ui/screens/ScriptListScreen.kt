@@ -64,7 +64,6 @@ import com.openring.data.db.OpenRingDatabase
 import com.openring.data.ScriptStore
 import com.openring.domain.Scheduler
 import com.openring.domain.ScriptExecutor
-import com.openring.core.OverlayService
 import com.openring.workflow.WorkflowTemplates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -217,18 +216,6 @@ fun ScriptListScreen(
                                 try {
                                     Log.d("OpenRing", "開始執行腳本: ${script.name}")
                                     val executor = ScriptExecutor(context, db.executionHistoryDao())
-                                    if (Settings.canDrawOverlays(context)) {
-                                        try {
-                                            val serviceIntent = Intent(context, OverlayService::class.java)
-                                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                                context.startForegroundService(serviceIntent)
-                                            } else {
-                                                context.startService(serviceIntent)
-                                            }
-                                        } catch (e: Exception) {
-                                            Log.w("OpenRing", "OverlayService 啟動失敗，繼續執行", e)
-                                        }
-                                    }
                                     val result = withContext(Dispatchers.Default) {
                                         executor.execute(script)
                                     }
@@ -237,11 +224,6 @@ fun ScriptListScreen(
                                             Log.d("OpenRing", "腳本執行完成: 成功")
                                         is com.openring.domain.ScriptExecutor.ExecutionResult.Failure ->
                                             Log.e("OpenRing", "腳本執行完成: 失敗 step=${result.stepIndex} error=${result.error}")
-                                    }
-                                    if (Settings.canDrawOverlays(context)) {
-                                        try {
-                                            context.stopService(Intent(context, OverlayService::class.java))
-                                        } catch (_: Exception) {}
                                     }
                                 } catch (e: Exception) {
                                     Log.e("OpenRing", "執行崩潰", e)
