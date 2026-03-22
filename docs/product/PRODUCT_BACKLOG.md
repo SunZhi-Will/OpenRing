@@ -4,6 +4,8 @@
 
 > 純手機端架構 | 依優先級排序
 
+> **近期已落地（維護文件用）**：本機 GGUF 聊天與**串流**、`summarize_view_tree` 精簡 UI、`UiTreeCompact` 與 ReAct 共用壓縮邏輯、Phi／Gemma／Qwen 等對話模板、Gemini `describe_screen` 視覺後援、型錄化 GGUF 下載等。細節見 [AI_AGENT.md](../technical/AI_AGENT.md) 與 README。
+
 ---
 
 ## Epic 1：核心能力（AccessibilityService）

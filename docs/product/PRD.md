@@ -2,10 +2,10 @@
 
 [English Version Below](#english-version)
 
-版本：v0.3（文件草案精煉版）
-更新日期：2026-03-19
+版本：v0.4（文件草案精煉版）
+更新日期：2026-03-22
 
-> 說明：本 PRD 以「純手機端 Android App」為前提；Gemini 僅作為雲端大語言模型（device -> Google API），“無 Web 控制台、無自建後端”。
+> 說明：本 PRD 以「純手機端 Android App」為前提；**Gemini** 為可選之雲端大語言模型（device → Google API，BYOK）；**本機 GGUF** 為可選之裝置端推理（無雲端後台）。“無 Web 控制台、無 OpenRing 自建後端”。
 
 ---
 
@@ -20,7 +20,14 @@ OpenRing
 進一步導入「動態技能擴充生態系」：類似電腦版軟體生態（如“龍蝦”那種強插件擴充精神），任何人都能用 JS 開發 Skill Plugins，並在手機端一鍵安裝、即時執行。
 
 ### 1.3 核心定位
-基於 Android `AccessibilityService`、Gemini Function Calling 與輕量 JS 沙盒引擎（QuickJS）的「無腳本、高擴充、BYOK 自動化外掛平台」。
+基於 Android `AccessibilityService`、**可選** Gemini Function Calling、**可選** 本機 GGUF（`llama-kotlin-android`）與輕量 JS 沙盒引擎（QuickJS）的「對話驅動、高擴充、BYOK／離線並存」自動化平台。
+
+### 1.4 模型與感知路徑（摘要）
+
+| 路徑 | 說明 |
+|------|------|
+| **Gemini + ReAct** | 完整工具迴圈；大型 `get_view_tree` 可壓縮；另有 **`summarize_view_tree`** 精簡摘要；**`describe_screen`** 於無障礙樹不足時以螢幕截圖 + 視覺模型補強。 |
+| **本機 GGUF** | 僅純文字續寫（含歷史與系統／記憶文字注入）；聊天介面支援 **串流**；不內建與雲端相同的工具自動呼叫迴圈。 |
 
 ---
 
@@ -446,10 +453,10 @@ MVP 建議：
 
 # OpenRing Product Requirements Document (PRD)
 
-Version: v0.3 (Draft Refinement)
-Last Updated: 2026-03-19
+Version: v0.4 (Draft Refinement)
+Last Updated: 2026-03-22
 
-> Note: This PRD assumes a "pure mobile Android App"; Gemini serves solely as the cloud large language model (device -> Google API), with "no Web console, no self-hosted backend".
+> Note: This PRD assumes a "pure mobile Android App". **Gemini** is an optional cloud LLM (device → Google API, BYOK). **On-device GGUF** is optional local inference without an OpenRing-hosted backend. "No Web console, no OpenRing self-hosted backend."
 
 ---
 
@@ -464,7 +471,14 @@ Implement a sci-fi level AI assistant on Android devices: OpenRing abandons trad
 Furthermore, it introduces a "Dynamic Skill Extension Ecosystem": similar to PC software ecosystems (like the strong plugin extension spirit of "Lobster"), anyone can develop Skill Plugins using JS, and install/execute them instantly on the mobile device with one click.
 
 ### 1.3 Core Positioning
-A "scriptless, highly extensible, BYOK automated plugin platform" based on Android `AccessibilityService`, Gemini Function Calling, and a lightweight JS sandbox engine (QuickJS).
+A "Chat-driven, highly extensible" automation platform based on Android `AccessibilityService`, optional Gemini Function Calling, optional on-device GGUF (`llama-kotlin-android`), and a lightweight JS sandbox (QuickJS).
+
+### 1.4 Models & sensing paths (summary)
+
+| Path | Notes |
+|------|--------|
+| **Gemini + ReAct** | Full tool loop; large `get_view_tree` payloads may be compacted; **`summarize_view_tree`** returns a compact summary; **`describe_screen`** uses screenshot + vision when the accessibility tree is insufficient. |
+| **On-device GGUF** | Text-only continuation (history + system/memory text); chat UI supports **streaming**; no built-in tool loop equivalent to the Gemini path. |
 
 ---
 

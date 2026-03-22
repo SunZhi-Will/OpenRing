@@ -2,8 +2,8 @@
 
 # OpenRing 專案規劃書
 
-> 版本：v0.3 | 更新日期：2026-03-19  
-> **架構：純手機端，無 Web 控制台、無後端**
+> 版本：v0.4 | 更新日期：2026-03-22  
+> **架構：純手機端，無 Web 控制台、無 OpenRing 自建後端**
 
 ---
 
@@ -37,7 +37,8 @@
 - Android AccessibilityService 核心：View Tree 解析、手勢模擬
 - Chat-Driven OS：主控對話室、Working Bubble 狀態顯示
 - ReAct Loop Coordinator：sense/think/tool/act/finalize 閉環
-- Gemini Function Calling dispatcher：tool 結果結構化回填
+- Gemini Function Calling dispatcher：tool 結果結構化回填；大型 UI 樹可經 `UiTreeCompact` 壓縮；`summarize_view_tree` 提供精簡摘要
+- 可選本機 GGUF（`LocalLlmEngine` + 型錄下載）：純文字對話、串流輸出（無內建工具迴圈）
 - QuickJS Skill Plugin Engine：單一 Skill 安裝與執行
 - BYOK：Gemini API Key 管理、敏感資料遮蔽
 - Human takeover：連續找不到節點時的紅色震動提示與一次 tap hint
@@ -54,7 +55,7 @@
 - Webhook 遠端觸發
 - 多裝置管理
 - iOS 支援
-- LLM 輔助節點選擇
+- OpenRing 自建雲端推理／後台託管模型（使用者自備 BYOK 呼叫 Google API 不在此列）
 
 ---
 
@@ -122,6 +123,19 @@
 | **腳本編輯器** | 區塊式步驟編輯、參數設定、儲存 | 列表 + 表單 |
 | **排程設定** | 設定定時（每日/每小時/自訂）、啟用/停用 | 表單 |
 | **執行歷史** | 近期執行記錄、成功/失敗、錯誤訊息 | 列表 |
+| **主控聊天（Chat）** | 對話驅動任務、模型鏈、本機串流／Gemini ReAct | Compose |
+| **設定** | API Key、模型鏈、本機模型下載、掃描／道德鎖定等 | Compose |
+| **技能（Skills）** | 匯入 ZIP／URL、啟用技能、白名單來源 | Compose |
+
+### 4.4 Agent 與本機模型層
+
+| 模組 | 功能描述 | 主要檔案 |
+|------|----------|----------|
+| **ReActCoordinator** | Gemini 多輪、工具呼叫、結果回填、可選 UI 壓縮 | `agent/ReActCoordinator.kt` |
+| **ToolDispatcher / ToolSchemas** | 工具註冊與執行（含 `summarize_view_tree`、`describe_screen`） | `agent/ToolDispatcher.kt`, `ToolSchemas.kt` |
+| **UiTreeCompact** | 指紋與可點擊摘要，縮小送模組之 payload | `agent/UiTreeCompact.kt` |
+| **LocalLlmEngine** | GGUF 載入與串流／非串流推論 | `localmodel/LocalLlmEngine.kt` |
+| **LocalModelCatalog** | 公開 GGUF 下載 URL 與檔名 | `localmodel/LocalModelCatalog.kt` |
 
 ---
 
@@ -261,8 +275,9 @@
 
 ### 8.2 外部依賴
 
-- 無需網路（純本地）
-- 無需第三方付費服務
+- **可選**：使用者自備 **Google Gemini API（BYOK）**，用於雲端對話、`describe_screen` 視覺與完整工具迴圈。
+- **可選**：`LocalModelCatalog` 所列之 **HTTPS GGUF** 下載（例如 Hugging Face 公開連結）。
+- 核心自動化能力**不要求**任何 OpenRing 付費服務。
 
 ---
 
@@ -287,15 +302,16 @@ OpenRing/
 │   ├── src/main/
 │   │   ├── java/.../       # Kotlin 原始碼
 │   │   │   ├── core/       # AccessibilityService, Parser, Executor
-│   │   │   ├── data/       # ScriptStore, Room
+│   │   │   ├── agent/      # ReAct, ToolDispatcher, ToolSchemas
+│   │   │   ├── localmodel/ # GGUF 型錄、LocalLlmEngine
+│   │   │   ├── data/       # ScriptStore, Room, ChatRepository
 │   │   │   ├── domain/     # ScriptExecutor, Scheduler
-│   │   │   └── ui/         # Activity, Fragment, ViewModel
+│   │   │   └── ui/         # Jetpack Compose 畫面
 │   │   └── res/
 │   └── build.gradle.kts
 ├── docs/
-│   ├── PROJECT_PLAN.md
-│   ├── PRODUCT_BACKLOG.md
-│   └── SCRIPT_FORMAT.md
+│   ├── product/            # PRD, PROJECT_PLAN, BACKLOG
+│   └── technical/          # SCRIPT_FORMAT, AI_AGENT, SKILLS, CI_CD …
 ├── build.gradle.kts
 ├── settings.gradle.kts
 └── README.md
@@ -317,8 +333,8 @@ OpenRing/
 
 # OpenRing Project Plan
 
-> Version: v0.3 | Updated: 2026-03-19  
-> **Architecture: Pure Mobile Client, No Web Console, No Backend**
+> Version: v0.4 | Updated: 2026-03-22  
+> **Architecture: Pure Mobile Client, No Web Console, No OpenRing-Hosted Backend**
 
 ---
 
@@ -352,7 +368,8 @@ OpenRing/
 - Android AccessibilityService core: View Tree parsing, gesture simulation
 - Chat-Driven OS: Main control chat room, Working Bubble status display
 - ReAct Loop Coordinator: sense/think/tool/act/finalize closed loop
-- Gemini Function Calling dispatcher: Structured backfilling of tool results
+- Gemini Function Calling dispatcher: Structured backfilling of tool results; large UI trees may be compacted via `UiTreeCompact`; `summarize_view_tree` returns a compact summary
+- Optional on-device GGUF (`LocalLlmEngine` + catalog downloads): text-only chat with streaming (no built-in tool loop in the local path)
 - QuickJS Skill Plugin Engine: Single Skill installation and execution
 - BYOK: Gemini API Key management, sensitive data masking
 - Human takeover: Red vibration prompt and single tap hint when nodes cannot be found continuously
@@ -369,7 +386,7 @@ OpenRing/
 - Remote webhook triggers
 - Multi-device management
 - iOS support
-- LLM-assisted node selection
+- OpenRing-hosted cloud inference or managed models (BYOK calls to Google APIs are not “hosted backend” in this sense)
 
 ---
 
@@ -437,6 +454,19 @@ OpenRing/
 | **Script Editor** | Block-based step editing, parameter setup, save | List + Form |
 | **Schedule Settings**| Sets timer (daily/hourly/custom), enable/disable| Form |
 | **Execution History**| Recent execution logs, success/failure, errors | List |
+| **Chat** | Chat-driven tasks, model chain, local streaming / Gemini ReAct | Compose |
+| **Settings** | API keys, model chain, on-device model downloads, scan/morality, etc. | Compose |
+| **Skills** | ZIP/URL install, enable skills, URL allowlists | Compose |
+
+### 4.4 Agent & On-Device Model Layer
+
+| Module | Description | Key paths |
+|--------|-------------|-----------|
+| **ReActCoordinator** | Multi-turn Gemini, tool calls, optional UI compaction | `agent/ReActCoordinator.kt` |
+| **ToolDispatcher / ToolSchemas** | Tool registration and execution (incl. `summarize_view_tree`, `describe_screen`) | `agent/ToolDispatcher.kt`, `ToolSchemas.kt` |
+| **UiTreeCompact** | Fingerprints and clickable summaries to shrink payloads | `agent/UiTreeCompact.kt` |
+| **LocalLlmEngine** | GGUF load and streaming / non-streaming inference | `localmodel/LocalLlmEngine.kt` |
+| **LocalModelCatalog** | Public GGUF download URLs and filenames | `localmodel/LocalModelCatalog.kt` |
 
 ---
 
@@ -576,8 +606,9 @@ OpenRing/
 
 ### 8.2 External Dependencies
 
-- No network required (purely local)
-- No third-party paid services
+- **Optional**: Google Gemini API (user-supplied key, BYOK) for cloud chat, vision (`describe_screen`), and full tool loop.
+- **Optional**: Hugging Face–hosted GGUF URLs listed in `LocalModelCatalog` for on-device download (HTTPS).
+- Core automation does not require any paid OpenRing service.
 
 ---
 
@@ -602,15 +633,16 @@ OpenRing/
 │   ├── src/main/
 │   │   ├── java/.../       # Kotlin source code
 │   │   │   ├── core/       # AccessibilityService, Parser, Executor
-│   │   │   ├── data/       # ScriptStore, Room
+│   │   │   ├── agent/      # ReAct, ToolDispatcher, ToolSchemas
+│   │   │   ├── localmodel/ # GGUF catalog, LocalLlmEngine
+│   │   │   ├── data/       # ScriptStore, Room, ChatRepository
 │   │   │   ├── domain/     # ScriptExecutor, Scheduler
-│   │   │   └── ui/         # Activity, Fragment, ViewModel
+│   │   │   └── ui/         # Jetpack Compose screens
 │   │   └── res/
 │   └── build.gradle.kts
 ├── docs/
-│   ├── PROJECT_PLAN.md
-│   ├── PRODUCT_BACKLOG.md
-│   └── SCRIPT_FORMAT.md
+│   ├── product/            # PRD, PROJECT_PLAN, BACKLOG
+│   └── technical/          # SCRIPT_FORMAT, AI_AGENT, SKILLS, CI_CD, …
 ├── build.gradle.kts
 ├── settings.gradle.kts
 └── README.md

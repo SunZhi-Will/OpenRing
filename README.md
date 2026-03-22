@@ -2,8 +2,8 @@
   <img src="docs/assets/openring-logo.png" alt="OpenRing logo" width="128" height="128">
   
   <h1>OpenRing</h1>
-  <p><b>A Lightweight On-Device RPA Workflow Engine based on Android AccessibilityService</b></p>
-  <p><i>Executes entirely on the phone, no PC backend required, no Root access needed</i></p>
+  <p><b>Android AccessibilityService RPA + Chat-Driven AI Agent (Gemini & optional on-device GGUF)</b></p>
+  <p><i>Runs on the phone—no PC backend, no Root; cloud LLM is optional (BYOK)</i></p>
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
   [![Platform](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com)
@@ -22,20 +22,23 @@
 
 ## 📖 Introduction
 
-OpenRing is a local automation Agent that freely navigates the Android system with "Ring 0"-like cross-app operational capabilities. Like a smart parrot, it accurately "reads" screen structures, "pecks" key data, and perfectly "imitates" human clicks and swipes.
+OpenRing is a **local Android automation agent** that moves across apps with **AccessibilityService**–driven semantics: it reads structured UI trees, runs **scripts and schedules**, and—through **Chat‑Driven OS**—uses **Gemini function calling (ReAct)** or **on-device GGUF models** to plan, call tools, and complete tasks.
 
-**The most significant feature is "Everything is done on the phone"** — whether it's creating scripts, editing schedules, or actual execution, it does not rely on a PC or any backend server. Automation completely returns to the local device, ensuring your privacy and efficiency.
+**Everything critical runs on the phone** — scripts, schedules, accessibility, skill sandboxes (QuickJS), and optional **local LLM** inference. A **Gemini API key (BYOK)** unlocks cloud reasoning, vision (`describe_screen`), and the full tool loop; without it, you can still use **downloaded GGUF** models for text chat with **streaming** replies.
 
 ---
 
 ## ✨ Key Features
 
 - **🚫 No Root Required**: Built on Android's official `AccessibilityService`, no need to hack or root your phone.
-- **📱 Pure Local Execution**: No need to connect to PC via ADB, no reliance on cloud servers. All data stays on your phone.
-- **👁️ Screen Structure Parsing**: Automatically parses the current screen's DOM Tree into structured JSON for script recognition.
-- **🖱️ Simulates Human Actions**: Accurately simulates clicks, swipes, long presses, and system-level actions like Back and Home.
-- **⏰ Local Scheduling Support**: Built-in WorkManager-based scheduled trigger mechanism, supporting offline automated task execution.
-- **🤖 Built-in Script Editor**: Write, edit, and test your automated workflows directly within the App.
+- **📱 Phone-First**: No PC or ADB required; **no OpenRing backend** — scripts, data, and skills stay on device unless you call a cloud API yourself (e.g. Gemini).
+- **🤖 Chat-Driven Agent**: **ReAct** loop with **Gemini** tools — `get_view_tree`, **`summarize_view_tree`** (compact UI), **`describe_screen`** (vision fallback when the tree is not enough), taps, input, memory, skills, and more.
+- **🦙 Optional On-Device LLM**: Curated **GGUF** catalog (`LocalModelCatalog`) with in-app download; **token streaming** in chat; chat templates for Qwen / Phi / Gemma / TinyLlama-style models (`LocalLlmChatPrompt`).
+- **👁️ Semantic UI Parsing**: View tree → JSON for scripts and automation; large trees can be **compacted** for LLM context (`UiTreeCompact`).
+- **🖱️ Human-Like Actions**: Clicks, swipes, long press, Back, Home, app launch.
+- **⏰ Scheduling**: WorkManager-based triggers for recurring scripts.
+- **🧩 Skill Plugins (QuickJS)**: `call_skill` runs sandboxed JS for deterministic helpers (see `docs/skill-templates/`).
+- **🛠️ Script Editor & Workflows**: Create, edit, and run JSON workflows on device.
 
 ---
 
@@ -64,6 +67,8 @@ OpenRing is built entirely in **Kotlin** and leverages modern Android developmen
 | **Intent Router** | Wakes up or navigates to target applications using Android Intents, Deep Links, or Package Names. |
 | **Script Engine** | Parses and executes predefined JSON/DSL scripts, integrating logic, variables, and conditions. |
 | **Scheduler** | Built on Android `WorkManager` for reliable, background execution of periodic or delayed tasks. |
+| **Agent (ReAct + Tools)** | `ReActCoordinator` + `ToolDispatcher` — Gemini function calling, tool results, optional UI compaction. |
+| **Local LLM** | `LocalLlmEngine` — GGUF load/inference via `llama-kotlin-android`, streaming generation for chat. |
 
 ### Project Structure
 
@@ -71,13 +76,17 @@ OpenRing is built entirely in **Kotlin** and leverages modern Android developmen
 OpenRing/
 ├── app/                  # The main Android Application module
 │   └── src/main/
-│       ├── core/         # AccessibilityService, Parser, Executor, IntentRouter
-│       ├── data/         # Room Database, DAOs, ScriptStore
-│       ├── domain/       # Use cases: ScriptExecutor, Scheduler logic
-│       └── ui/           # Jetpack Compose screens (Editor, History, Settings)
+│       ├── core/         # AccessibilityService, Parser, Executor, IntentRouter, ScreenCapture
+│       ├── agent/        # ReActCoordinator, ToolSchemas, ToolDispatcher, UiTreeCompact
+│       ├── localmodel/   # GGUF catalog, downloader, LocalLlmEngine, chat prompts
+│       ├── gemini/       # Gemini REST client & models
+│       ├── data/         # Room, ChatRepository, MemoryRepository, ScriptStore
+│       ├── domain/       # ScriptExecutor, Scheduler
+│       ├── skills/       # QuickJS skill install & execution
+│       └── ui/           # Jetpack Compose (Chat, Settings, Skills, Scripts, …)
 ├── docs/                 # Documentation
 │   ├── product/          # PRD, Backlog, Project Plan
-│   └── technical/        # Script Format, Protocol, Team Assignment
+│   └── technical/        # Script format, CI/CD, AI agent, skills
 └── gradle/               # Build configuration
 ```
 
@@ -116,6 +125,9 @@ You can open the project directly via Android Studio and click `Run`, or compile
 |----------|-------------|
 | [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md) | Project overview, architecture design, milestones, and potential risks |
 | [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md) | Product feature backlog, user stories, and priority evaluation |
+| [PRD.md](docs/product/PRD.md) | Product requirements: Chat-Driven OS, Gemini, skills, accessibility |
+| [AI_AGENT.md](docs/technical/AI_AGENT.md) | **Agent stack**: ReAct, tools (`summarize_view_tree`, vision, …), local GGUF, file map |
+| [SKILLS.md](docs/technical/SKILLS.md) | Tools vs Skills, QuickJS, morality guardrails |
 | [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md) | JSON format definition and action list supported by the script engine |
 | [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | Team assignments and system Prompt references for AI development |
 | [CI_CD.md](docs/technical/CI_CD.md) | GitHub Actions (debug APK artifacts, CodeQL, Dependabot, Dependency Review) |

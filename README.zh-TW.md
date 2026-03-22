@@ -2,8 +2,8 @@
   <img src="docs/assets/openring-logo.png" alt="OpenRing 標誌" width="128" height="128">
   
   <h1>OpenRing</h1>
-  <p><b>基於 Android AccessibilityService 的輕量化手機 RPA 工作流引擎</b></p>
-  <p><i>純手機端執行，無需電腦後台、無需 Root 權限</i></p>
+  <p><b>基於 Android AccessibilityService 的 RPA 與對話驅動 AI Agent（Gemini／可選本機 GGUF）</b></p>
+  <p><i>純手機端執行，無需電腦後台、無需 Root；雲端 LLM 採 BYOK 可選</i></p>
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
   [![Platform](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com)
@@ -22,20 +22,23 @@
 
 ## 📖 專案簡介
 
-OpenRing 是一款能在 Android 系統上自由穿梭、擁有「Ring 0」般跨應用操作能力的本地端自動化 Agent。如同聰明的月輪與玄鳳鸚鵡，它能精準「看懂」畫面結構、「啄取」關鍵資料，並完美「模仿」人類的點擊與滑動。
+OpenRing 是基於 **無障礙服務** 的 **Android 自動化 Agent**：可解析語意化 UI 樹、執行 **腳本與排程**，並透過 **Chat‑Driven OS** 以 **Gemini 函式呼叫（ReAct）** 或 **本機 GGUF** 模型推理，完成讀畫面、呼叫工具、輸入與點擊等閉環。
 
-**最大的特色是「一切在手機上完成」** — 無論是建立腳本、編輯排程，還是實際執行，都不需要依賴電腦或任何後端伺服器，讓自動化徹底回歸本地端，保障您的隱私與效率。
+**核心仍在手機端** — 腳本、排程、無障礙、QuickJS 技能沙盒與可選的 **本機大模型推論** 皆在裝置上；若設定 **Gemini API Key（BYOK）**，即可使用雲端推理、**螢幕視覺描述**（`describe_screen`）與完整工具迴圈；未設定時仍可透過 **已下載的 GGUF** 做純文字對話並支援 **串流輸出**。
 
 ---
 
 ## ✨ 核心特色
 
 - **🚫 免 Root 權限**：基於 Android 官方的 `AccessibilityService` 開發，無需破解手機。
-- **📱 純本地端執行**：不需連接電腦 ADB、不依賴雲端伺服器，所有資料留在您的手機內。
-- **👁️ 畫面結構解析**：自動將目前的畫面的 DOM Tree 解析為結構化的 JSON 供腳本辨識。
-- **🖱️ 模擬人類操作**：精準模擬點擊 (Click)、滑動 (Swipe)、長按 (Long Press) 以及系統級別的返回 (Back) 與主畫面 (Home)。
-- **⏰ 本地排程支援**：內建基於 WorkManager 的定時觸發機制，支援離線自動執行任務。
-- **🤖 內建腳本編輯器**：直接在 App 內撰寫、編輯與測試您的自動化工作流。
+- **📱 以手機為中心**：不需 ADB；**無 OpenRing 自建後台** — 腳本、資料與技能預設留在本機，除非您自行呼叫雲端 API（例如 Gemini）。
+- **🤖 對話驅動 Agent**：**ReAct** 與 **Gemini 工具** — `get_view_tree`、**`summarize_view_tree`**（精簡 UI）、**`describe_screen`**（樹不可靠時的視覺後援）、點擊輸入、記憶、技能等。
+- **🦙 可選本機 LLM**：內建 **GGUF 型錄**（`LocalModelCatalog`）與 App 內下載；聊天支援 **串流**；依模型族系套用對話模板（Qwen／Phi／Gemma／TinyLlama 等，`LocalLlmChatPrompt`）。
+- **👁️ 語意化 UI 解析**：View Tree → JSON 供腳本與自動化使用；送進雲端模型前可 **壓縮** 大型樹（`UiTreeCompact`）。
+- **🖱️ 模擬人類操作**：點擊、滑動、長按、返回、Home、喚醒 App。
+- **⏰ 本地排程**：WorkManager 定時觸發腳本。
+- **🧩 技能外掛（QuickJS）**：`call_skill` 於沙盒執行 JS（見 `docs/skill-templates/`）。
+- **🛠️ 腳本與工作流**：App 內編輯 JSON 工作流並執行。
 
 ---
 
@@ -66,6 +69,8 @@ OpenRing 完全使用 **Kotlin** 構建，並利用現代 Android 開發實踐�
 | **Intent Router** | 使用 Android Intents、Deep Links 或套件名稱喚醒或導航至目標應用程式。 |
 | **Script Engine** | 解析並執行預定義的 JSON/DSL 腳本，整合邏輯、變數和條件。 |
 | **Scheduler** | 基於 Android `WorkManager` 構建，用於可靠地在背景執行定期或延遲任務。 |
+| **Agent（ReAct + 工具）** | `ReActCoordinator` + `ToolDispatcher` — Gemini 函式呼叫、工具結果、可選 UI 壓縮。 |
+| **本機 LLM** | `LocalLlmEngine` — 透過 `llama-kotlin-android` 載入 GGUF 並推論，聊天支援串流。 |
 
 ### 專案結構
 
@@ -73,13 +78,17 @@ OpenRing 完全使用 **Kotlin** 構建，並利用現代 Android 開發實踐�
 OpenRing/
 ├── app/                  # 主要的 Android 應用程式模組
 │   └── src/main/
-│       ├── core/         # AccessibilityService, Parser, Executor, IntentRouter
-│       ├── data/         # Room Database, DAOs, ScriptStore
-│       ├── domain/       # 使用案例: ScriptExecutor, Scheduler 邏輯
-│       └── ui/           # Jetpack Compose 畫面 (Editor, History, Settings)
+│       ├── core/         # AccessibilityService, Parser, Executor, IntentRouter, 螢幕截圖
+│       ├── agent/        # ReActCoordinator, ToolSchemas, ToolDispatcher, UiTreeCompact
+│       ├── localmodel/   # GGUF 型錄、下載器、LocalLlmEngine、對話模板
+│       ├── gemini/       # Gemini REST 與模型定義
+│       ├── data/         # Room、ChatRepository、MemoryRepository、ScriptStore
+│       ├── domain/       # ScriptExecutor、Scheduler
+│       ├── skills/       # QuickJS 技能安裝與執行
+│       └── ui/           # Jetpack Compose（聊天、設定、技能、腳本…）
 ├── docs/                 # 文件
 │   ├── product/          # PRD, Backlog, 專案規劃
-│   └── technical/        # 腳本格式, 團隊分工等技術文件
+│   └── technical/        # 腳本格式、CI/CD、AI Agent、技能
 └── gradle/               # 建置設定
 ```
 
@@ -118,6 +127,9 @@ cd OpenRing
 |----------|------|
 | [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md) | 專案總覽、架構設計、里程碑規劃與潛在風險 |
 | [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md) | 產品功能待辦清單、使用者故事與優先級評估 |
+| [PRD.md](docs/product/PRD.md) | 產品需求：對話驅動、Gemini、技能、無障礙等 |
+| [AI_AGENT.md](docs/technical/AI_AGENT.md) | **Agent 架構**：ReAct、工具（含 `summarize_view_tree`、視覺）、本機 GGUF、原始碼索引 |
+| [SKILLS.md](docs/technical/SKILLS.md) | 工具與技能、QuickJS、道德鎖定說明 |
 | [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md) | 腳本引擎支援的 JSON 格式定義與動作清單 |
 | [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | 團隊分工與 AI 開發的系統 Prompt 參考 |
 | [CI_CD.md](docs/technical/CI_CD.md) | GitHub Actions（除錯版 APK 產物、CodeQL、Dependabot、Dependency Review） |

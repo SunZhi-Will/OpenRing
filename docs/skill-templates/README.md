@@ -1,6 +1,6 @@
 # OpenRing Skill Plugins (QuickJS)
 
-OpenRing Skill Plugins empower the Gemini Agent inside the app with **deterministic logic, custom integrations, and data processing** capabilities. Since the agent's context window is limited and LLMs can hallucinate logic, Skills provide local sandboxed code (running on QuickJS) that the Agent can call reliably.
+OpenRing Skill Plugins empower the **chat agent** (Gemini with function calling / ReAct inside the app) with **deterministic logic, custom integrations, and data processing** capabilities. On-device GGUF chat does not invoke the same tool loop; Skills are used when the **Gemini** path calls `call_skill` / `skill_*`. Since the agent's context window is limited and LLMs can hallucinate logic, Skills provide local sandboxed code (running on QuickJS) that the Agent can call reliably.
 
 This directory contains templates to help developers and users build Skills for the OpenRing ecosystem.
 

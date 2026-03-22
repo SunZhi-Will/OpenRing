@@ -13,6 +13,8 @@
   - 已啟用的 Skill 會額外註冊為 `skill_<manifest.name>`（與 `manifest.json` 的 `name` 一致時最清楚）
 - **實作 (執行時期行為)**: `app/src/main/java/com/openring/agent/ToolDispatcher.kt`
   - 將工具呼叫對應至裝置動作 (無障礙服務、intents 等)
+  - `get_view_tree` / `get_cached_scan`：送進 Gemini 前可由 `ReActCoordinator` 搭配 `UiTreeCompact` **壓縮**；亦可改呼叫 **`summarize_view_tree`** 只取精簡摘要
+  - `describe_screen`：螢幕截圖 + Gemini 視覺（需 API Key）
   - `call_skill` / `skill_*`：讀取已安裝技能目錄下的 `script.js`，於 QuickJS 執行 `run(input)`
   - `install_skill`：從**白名單 URL** 下載 ZIP 並安裝（見 `SkillAllowedSourcesStore`）
 
@@ -70,6 +72,8 @@ This project uses **Tools** (Gemini function calling) for automation and **Skill
   - Enabled Skills also register as `skill_<manifest.name>` (keep `name` aligned with the install folder id)
 - **Implementation (runtime)**: `app/src/main/java/com/openring/agent/ToolDispatcher.kt`
   - Maps tool calls to device actions (Accessibility, intents, etc.)
+  - `get_view_tree` / `get_cached_scan`: may be **compacted** for Gemini via `UiTreeCompact` in `ReActCoordinator`; **`summarize_view_tree`** returns a compact summary only
+  - `describe_screen`: screenshot + Gemini vision (requires API key)
   - `call_skill` / `skill_*`: load `script.js` from installed skill folders and run `run(input)` in QuickJS
   - `install_skill`: download a ZIP from an **allowlisted** URL (`SkillAllowedSourcesStore`)
 

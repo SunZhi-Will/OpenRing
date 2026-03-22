@@ -34,3 +34,7 @@ Producing a **signed release APK or AAB** in CI requires **keystore secrets** (e
 
 - If **CodeQL** fails while **Android CI** passes, compare logs: both use `assembleDebug` with JDK 17 and the Android SDK setup action. Report discrepancies as issues with workflow logs attached.
 - **Dependency Review** may be limited on private repositories without appropriate GitHub features; see [GitHub Docs: Dependency review](https://docs.github.com/en/code-security/supply-chain-security/understanding-your-software-supply-chain/about-dependency-review).
+
+## See also
+
+- [AI_AGENT.md](AI_AGENT.md) — chat agent, tools, and on-device GGUF overview (not CI-specific).
