@@ -36,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Description
@@ -160,6 +161,7 @@ fun ChatScreen(
     var activeChatSessionId by remember { mutableStateOf<String?>(null) }
     var input by remember { mutableStateOf("") }
     var sessionSheetOpen by remember { mutableStateOf(false) }
+    var moreMenuExpanded by remember { mutableStateOf(false) }
     var sessionsForPicker by remember { mutableStateOf<List<ChatSession>>(emptyList()) }
     val sessionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -578,19 +580,13 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            "OpenRing",
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            "Chat-Driven OS",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text(
+                        "OpenRing",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 },
                 actions = {
                     IconButton(
@@ -623,17 +619,55 @@ fun ChatScreen(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = "新對話")
                     }
-                    IconButton(onClick = onNavigateToWorkflows) {
-                        Icon(Icons.Default.Description, contentDescription = "排程 / 工作流")
-                    }
-                    IconButton(onClick = onNavigateToExecutionLog) {
-                        Icon(Icons.Default.Tune, contentDescription = "執行 Log")
-                    }
-                    IconButton(onClick = onNavigateToSkills) {
-                        Icon(Icons.Default.Apps, contentDescription = "技能中心")
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "設定")
+                    Box {
+                        IconButton(onClick = { moreMenuExpanded = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "更多")
+                        }
+                        DropdownMenu(
+                            expanded = moreMenuExpanded,
+                            onDismissRequest = { moreMenuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("排程 / 工作流") },
+                                onClick = {
+                                    moreMenuExpanded = false
+                                    onNavigateToWorkflows()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Description, contentDescription = null)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("執行 Log") },
+                                onClick = {
+                                    moreMenuExpanded = false
+                                    onNavigateToExecutionLog()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Tune, contentDescription = null)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("技能中心") },
+                                onClick = {
+                                    moreMenuExpanded = false
+                                    onNavigateToSkills()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Apps, contentDescription = null)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("設定") },
+                                onClick = {
+                                    moreMenuExpanded = false
+                                    onNavigateToSettings()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Settings, contentDescription = null)
+                                }
+                            )
+                        }
                     }
                 }
             )
