@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -17,7 +18,6 @@ import com.openring.ui.MainActivity
 object AiRunNotification {
     const val CHANNEL_ID = "openring_ai_run"
     const val NOTIFICATION_ID = 1201
-    const val ACTION_STOP_AI_RUN = "com.openring.action.STOP_AI_RUN"
     const val EXTRA_SESSION_ID = "session_id"
 
     fun show(context: Context, sessionId: String) {
@@ -27,7 +27,9 @@ object AiRunNotification {
         val openIntent = PendingIntent.getActivity(
             context,
             100,
-            Intent(context, MainActivity::class.java).apply {
+            Intent().apply {
+                component = ComponentName(context, MainActivity::class.java)
+                setPackage(context.packageName)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -36,8 +38,9 @@ object AiRunNotification {
         val stopIntent = PendingIntent.getBroadcast(
             context,
             101,
-            Intent(context, AiRunControlReceiver::class.java).apply {
-                action = ACTION_STOP_AI_RUN
+            Intent().apply {
+                component = ComponentName(context, AiRunControlReceiver::class.java)
+                setPackage(context.packageName)
                 putExtra(EXTRA_SESSION_ID, sessionId)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
