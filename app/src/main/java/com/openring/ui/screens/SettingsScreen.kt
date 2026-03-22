@@ -350,18 +350,22 @@ private fun ModelReorderList(
                 val ready = isModelReady(item)
                 val menuExpanded = lastMenuFor == item.id
 
-                fun reorderToTarget(current: Int, targetIndex: Int) {
+                fun reorderToTarget(current: Int, targetIndex: Int, persist: Boolean = true) {
                     if (targetIndex == current || targetIndex !in models.indices) return
                     val moved = models.removeAt(current)
-                    val insertAt = if (current < targetIndex) targetIndex - 1 else targetIndex
-                    models.add(insertAt.coerceIn(0, models.size), moved)
-                    onReorderCommitted()
+                    // 目標為「放下後該項在清單中的索引」。remove 後直接 add(targetIndex) 即可（勿用 targetIndex-1，否則 0↔1 互換會加回原位）。
+                    models.add(targetIndex, moved)
+                    if (persist) onReorderCommitted()
                 }
                 fun computeTargetIndex(current: Int): Int {
                     val visible = listState.layoutInfo.visibleItemsInfo
+                    if (visible.isEmpty()) return current
                     val itemSize = visible.firstOrNull { it.index == current }?.size?.toFloat() ?: 80f
                     val draggedCenterY = frozenDragCardRootTop - boxTopY + dragOffsetY + itemSize / 2f
-                    val targetInfo = visible.minByOrNull { info ->
+                    // 勿把「正在拖的那一列」當成落點，否則拖第一項時距離永遠最近的是自己，無法換到第二列。
+                    val candidates = visible.filter { it.index != current }
+                    if (candidates.isEmpty()) return current
+                    val targetInfo = candidates.minByOrNull { info ->
                         val mid = info.offset + info.size / 2f
                         kotlin.math.abs(mid - draggedCenterY)
                     }
@@ -383,18 +387,30 @@ private fun ModelReorderList(
                             }
                             val targetIndex = computeTargetIndex(current)
                             if (targetIndex != current) {
-                                reorderToTarget(current, targetIndex)
+                                reorderToTarget(current, targetIndex, persist = false)
                             }
+                            onReorderCommitted()
                             draggingItemId = null
                             dragOffsetY = 0f
                         },
                         onDragCancel = {
+                            onReorderCommitted()
                             draggingItemId = null
                             dragOffsetY = 0f
                         },
-                        onDrag = { change, dragAmount ->
+                        onDrag = drag@{ change, dragAmount ->
                             change.consume()
                             dragOffsetY += dragAmount.y
+                            val cur = models.indexOfFirst { it.id == draggingItemId }.takeIf { it >= 0 }
+                                ?: return@drag
+                            val t = computeTargetIndex(cur)
+                            if (t != cur) {
+                                reorderToTarget(cur, t, persist = false)
+                                draggingItemId?.let { id ->
+                                    frozenDragCardRootTop = cardRootTopById[id] ?: frozenDragCardRootTop
+                                }
+                                dragOffsetY = 0f
+                            }
                         }
                     )
                 }
