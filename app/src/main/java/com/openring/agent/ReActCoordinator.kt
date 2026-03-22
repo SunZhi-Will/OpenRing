@@ -55,16 +55,20 @@ class ReActCoordinator(
         apiKey: String,
         model: String,
         userText: String,
+        /** 先前對話輪次（user/model 文字），會置於本次 userText 之前送給模型。 */
+        priorContents: List<Content> = emptyList(),
         maxRounds: Int = 30,
         shouldCancel: () -> Boolean = { false },
         onTurn: (Turn) -> Unit = {}
     ): RunResult {
-        val tools = ToolSchemas.buildTools()
+        val tools = ToolSchemas.buildTools(context)
         val systemPrompt = AiPromptStore(context).getSystemPrompt().takeIf { it.isNotBlank() }
         val systemInstruction = systemPrompt?.let { Content(role = "user", parts = listOf(Part(text = it))) }
-        val contents = mutableListOf(
-            Content(role = "user", parts = listOf(Part(text = userText)))
-        )
+        val coercedPrior = if (priorContents.size > 24) priorContents.takeLast(24) else priorContents
+        val contents = mutableListOf<Content>().apply {
+            addAll(coercedPrior)
+            add(Content(role = "user", parts = listOf(Part(text = userText))))
+        }
         val turns = mutableListOf(Turn(role = "user", text = userText))
         Log.d(
             TAG,

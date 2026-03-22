@@ -1,5 +1,7 @@
 package com.openring.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,9 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Card
@@ -31,9 +32,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,25 +44,66 @@ import androidx.compose.ui.platform.LocalContext
 import com.openring.skills.InstalledSkillStore
 import com.openring.skills.SkillAllowedSourcesStore
 import com.openring.skills.SkillEnabledStore
+import com.openring.skills.SkillInstall
 import com.openring.ui.theme.Spacing
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SkillsScreen(
     onBack: () -> Unit,
-    onImportZip: () -> Unit = {},
-    onImportFromGitHub: () -> Unit = {},
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val allowedStore = remember { SkillAllowedSourcesStore(context) }
     var allowedUrls by remember { mutableStateOf(allowedStore.getAllowedUrls()) }
     var showAddDialog by remember { mutableStateOf(false) }
     var newUrl by remember { mutableStateOf("") }
 
     val installedStore = remember { InstalledSkillStore(context) }
-    val installedIds = remember { installedStore.getInstalledIds() }
     val enabledStore = remember { SkillEnabledStore(context) }
+    var installedIds by remember { mutableStateOf(installedStore.getInstalledIds()) }
     var enabledIds by remember { mutableStateOf(enabledStore.getEnabledIds().toSet()) }
+
+    var statusLine by remember { mutableStateOf<String?>(null) }
+    var showUrlInstallDialog by remember { mutableStateOf(false) }
+    var urlToInstall by remember { mutableStateOf("") }
+
+    fun refreshSkillLists() {
+        installedIds = installedStore.getInstalledIds()
+        enabledIds = enabledStore.getEnabledIds().toSet()
+    }
+
+    LaunchedEffect(Unit) {
+        refreshSkillLists()
+    }
+
+    val pickZipLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch(Dispatchers.IO) {
+            val result = try {
+                context.contentResolver.openInputStream(uri)?.use { stream ->
+                    SkillInstall.installFromZipInputStream(context, stream)
+                } ?: SkillInstall.Result.Err("READ_FAILED", "Cannot open file")
+            } catch (e: Exception) {
+                SkillInstall.Result.Err("READ_FAILED", e.message ?: e.javaClass.simpleName)
+            }
+            withContext(Dispatchers.Main) {
+                when (result) {
+                    is SkillInstall.Result.Ok -> {
+                        statusLine = "已安裝：${result.skillId}"
+                        refreshSkillLists()
+                    }
+                    is SkillInstall.Result.Err ->
+                        statusLine = "錯誤 [${result.code}] ${result.message}"
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -67,7 +111,7 @@ fun SkillsScreen(
                 title = { Text("Skills") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 }
             )
@@ -83,12 +127,12 @@ fun SkillsScreen(
         ) {
             item {
                 Text(
-                    "允許 AI 安裝來源（白名單）",
+                    "允許從 URL 安裝來源（白名單）",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    "AI 僅能從以下 URL 安裝 Skill；請手動新增信任的來源。",
+                    "AI 的 install_skill 與下方「從 URL 安裝」僅能使用已加入白名單的 URL 前綴。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -136,7 +180,7 @@ fun SkillsScreen(
 
                 if (installedIds.isEmpty()) {
                     Text(
-                        "目前沒有安裝任何 Skill。可從 ZIP 或 GitHub 匯入技能包，或由 AI 從上方白名單 URL 安裝。",
+                        "目前沒有安裝任何 Skill。可使用「匯入 ZIP」、從白名單 URL 安裝（含 GitHub Releases 的 zip 直連），或由 AI 呼叫 install_skill。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -194,8 +238,20 @@ fun SkillsScreen(
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    OutlinedButton(onClick = onImportZip) { Text("匯入 ZIP") }
-                    OutlinedButton(onClick = onImportFromGitHub) { Text("從 GitHub 匯入") }
+                    OutlinedButton(onClick = { pickZipLauncher.launch("application/zip") }) {
+                        Text("匯入 ZIP")
+                    }
+                    OutlinedButton(onClick = { showUrlInstallDialog = true }) {
+                        Text("從 URL 安裝（含 GitHub）")
+                    }
+                }
+                statusLine?.let { line ->
+                    Spacer(Modifier.height(Spacing.sm))
+                    Text(
+                        line,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -226,6 +282,59 @@ fun SkillsScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showAddDialog = false; newUrl = "" }) { Text("取消") }
+                }
+            )
+        }
+        if (showUrlInstallDialog) {
+            AlertDialog(
+                onDismissRequest = { showUrlInstallDialog = false; urlToInstall = "" },
+                title = { Text("從 URL 安裝") },
+                text = {
+                    Column {
+                        Text(
+                            "貼上指向 .zip 的 https 連結（例如 GitHub Releases 的 asset 下載網址）。該網址必須以白名單中的其中一項為前綴。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(Spacing.sm))
+                        OutlinedTextField(
+                            value = urlToInstall,
+                            onValueChange = { urlToInstall = it },
+                            label = { Text("ZIP URL") },
+                            singleLine = false,
+                            maxLines = 4,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val u = urlToInstall.trim()
+                            if (u.isNotBlank()) {
+                                scope.launch(Dispatchers.IO) {
+                                    val result = SkillInstall.installFromUrl(context, u, allowedStore)
+                                    withContext(Dispatchers.Main) {
+                                        showUrlInstallDialog = false
+                                        urlToInstall = ""
+                                        when (result) {
+                                            is SkillInstall.Result.Ok -> {
+                                                statusLine = "已安裝：${result.skillId}"
+                                                refreshSkillLists()
+                                            }
+                                            is SkillInstall.Result.Err ->
+                                                statusLine = "錯誤 [${result.code}] ${result.message}"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ) { Text("安裝") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showUrlInstallDialog = false; urlToInstall = "" }) {
+                        Text("取消")
+                    }
                 }
             )
         }

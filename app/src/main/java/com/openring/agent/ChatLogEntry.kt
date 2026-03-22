@@ -2,6 +2,8 @@ package com.openring.agent
 
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 sealed class ChatLogEntry(open val createdAtMs: Long) {
@@ -37,6 +39,32 @@ sealed class ChatLogEntry(open val createdAtMs: Long) {
             put("toolName", toolName)
             put("result", result)
             put("ts", createdAtMs)
+        }
+    }
+
+    companion object {
+        fun fromJsonObject(obj: JsonObject): ChatLogEntry? {
+            val ts = obj["ts"]?.jsonPrimitive?.content?.toLongOrNull() ?: return null
+            return when (obj["type"]?.jsonPrimitive?.content) {
+                "text" -> Text(
+                    message = obj["message"]?.jsonPrimitive?.content ?: return null,
+                    createdAtMs = ts
+                )
+
+                "tool_call" -> ToolCall(
+                    toolName = obj["toolName"]?.jsonPrimitive?.content ?: return null,
+                    args = obj["args"]?.jsonObject ?: return null,
+                    createdAtMs = ts
+                )
+
+                "tool_result" -> ToolResult(
+                    toolName = obj["toolName"]?.jsonPrimitive?.content ?: return null,
+                    result = obj["result"]?.jsonObject ?: return null,
+                    createdAtMs = ts
+                )
+
+                else -> null
+            }
         }
     }
 }

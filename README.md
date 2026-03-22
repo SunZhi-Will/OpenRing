@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" alt="OpenRing Logo" width="120" height="120">
+  <img src="docs/assets/openring-logo.png" alt="OpenRing logo" width="128" height="128">
   
   <h1>OpenRing</h1>
   <p><b>A Lightweight On-Device RPA Workflow Engine based on Android AccessibilityService</b></p>
@@ -9,6 +9,8 @@
   [![Platform](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com)
   [![Language](https://img.shields.io/badge/Language-Kotlin-purple.svg)](https://kotlinlang.org/)
   [![Build](https://img.shields.io/badge/Build-Gradle-blueviolet.svg)](https://gradle.org/)
+  [![Android CI](https://github.com/SunZhi-Will/OpenRing/actions/workflows/android-ci.yml/badge.svg)](https://github.com/SunZhi-Will/OpenRing/actions/workflows/android-ci.yml)
+  [![CodeQL](https://github.com/SunZhi-Will/OpenRing/actions/workflows/codeql.yml/badge.svg)](https://github.com/SunZhi-Will/OpenRing/actions/workflows/codeql.yml)
   [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
   
   <br/>
@@ -116,6 +118,7 @@ You can open the project directly via Android Studio and click `Run`, or compile
 | [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md) | Product feature backlog, user stories, and priority evaluation |
 | [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md) | JSON format definition and action list supported by the script engine |
 | [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | Team assignments and system Prompt references for AI development |
+| [CI_CD.md](docs/technical/CI_CD.md) | GitHub Actions (debug APK artifacts, CodeQL, Dependabot, Dependency Review) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Complete open-source contribution guide and PR submission process |
 
 ---
@@ -138,6 +141,12 @@ For detailed contribution guidelines, please see [CONTRIBUTING.md](CONTRIBUTING.
 
 If you discover any security vulnerabilities, please **do not** report them in public Issues.
 Please refer to our [Security Policy (SECURITY.md)](SECURITY.md) to learn how to contact us privately and help fix the issue.
+
+---
+
+## 🔁 CI/CD & automated checks
+
+GitHub Actions builds a **debug APK** on each push/PR (downloadable from the workflow run’s **Artifacts**), runs **CodeQL** static analysis for Java/Kotlin after a Gradle build, and uses **Dependency Review** plus **Dependabot** to surface vulnerable or outdated dependencies. See [docs/technical/CI_CD.md](docs/technical/CI_CD.md) for workflow names, permissions, and artifact usage.
 
 ---
 

@@ -1,41 +1,100 @@
 package com.openring.agent
 
+import android.content.Context
+import android.util.Log
 import com.openring.gemini.model.FunctionDeclaration
 import com.openring.gemini.model.Tool
+import com.openring.skills.SkillEnabledStore
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import java.io.File
 
 object ToolSchemas {
 
-    fun buildTools(): List<Tool> {
+    private val json = Json { ignoreUnknownKeys = true }
+
+    fun buildTools(context: Context): List<Tool> {
+        val staticTools = listOf(
+            getInstalledApps(),
+            getViewTree(),
+            getCachedScan(),
+            launchApp(),
+            findAndClick(),
+            clickNode(),
+            swipe(),
+            back(),
+            home(),
+            inputText(),
+            inputTextFocused(),
+            clickSendButton(),
+            verifySendResult(),
+            extractText(),
+            listScheduledScripts(),
+            updateScriptSchedule(),
+            createScheduledScript(),
+            deleteScheduledScript(),
+            memorySaveFact(),
+            memoryListFacts(),
+            memoryDeleteFact(),
+            memorySetSessionSummary(),
+            memoryGetSessionSummary(),
+            memorySaveChunk(),
+            memoryRecall(),
+            callSkill(),
+            setSystemPrompt(),
+            installSkill()
+        )
+
+        val dynamicTools = loadDynamicSkills(context)
+
         return listOf(
             Tool(
-                functionDeclarations = listOf(
-                    getInstalledApps(),
-                    getViewTree(),
-                    getCachedScan(),
-                    launchApp(),
-                    findAndClick(),
-                    clickNode(),
-                    swipe(),
-                    back(),
-                    home(),
-                    inputText(),
-                    inputTextFocused(),
-                    clickSendButton(),
-                    verifySendResult(),
-                    extractText(),
-                    callSkill(),
-                    updateScriptSchedule(),
-                    createScheduledScript(),
-                    setSystemPrompt(),
-                    installSkill()
-                )
+                functionDeclarations = staticTools + dynamicTools
             )
         )
+    }
+
+    private fun loadDynamicSkills(context: Context): List<FunctionDeclaration> {
+        val enabledIds = SkillEnabledStore(context).getEnabledIds()
+        val declarations = mutableListOf<FunctionDeclaration>()
+
+        for (skillId in enabledIds) {
+            val manifestFile = File(context.filesDir, "skills/$skillId/manifest.json")
+            if (manifestFile.exists()) {
+                try {
+                    val manifestText = manifestFile.readText()
+                    val manifestObj = json.parseToJsonElement(manifestText).jsonObject
+
+                    val name = manifestObj["name"]?.jsonPrimitive?.content ?: skillId
+                    val description = manifestObj["description"]?.jsonPrimitive?.content ?: "Skill: $name"
+                    val inputSchema = manifestObj["inputSchema"]?.jsonObject ?: buildJsonObject {
+                        put("type", "object")
+                        putJsonObject("properties") {}
+                    }
+
+                    // To avoid collision and uniquely identify dynamic skills in ToolDispatcher
+                    val toolName = "skill_$name"
+
+                    declarations.add(
+                        FunctionDeclaration(
+                            name = toolName,
+                            description = description,
+                            parameters = inputSchema
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.e("ToolSchemas", "Failed to parse manifest for skill $skillId", e)
+                }
+            }
+        }
+        return declarations
     }
 
     private fun getInstalledApps() = FunctionDeclaration(
@@ -222,9 +281,18 @@ object ToolSchemas {
         }
     )
 
+    private fun listScheduledScripts() = FunctionDeclaration(
+        name = "list_scheduled_scripts",
+        description = "List all locally saved scheduled scripts (id, name, schedule, prompt preview). Call this first when planning recurring tasks: check for duplicates, pick scriptId for update_script_schedule or delete_scheduled_script, or confirm names before create_scheduled_script.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {}
+        }
+    )
+
     private fun updateScriptSchedule() = FunctionDeclaration(
         name = "update_script_schedule",
-        description = "Update the schedule of an existing script (workflow). Script must exist; use scriptId from script list.",
+        description = "Update timing or enable/disable an existing scheduled script. Always call list_scheduled_scripts first if you do not already have scriptId. Use this after the user changes cadence, time-of-day, or wants to pause/resume automation.",
         parameters = buildJsonObject {
             put("type", JsonPrimitive("object"))
             putJsonObject("properties") {
@@ -257,7 +325,7 @@ object ToolSchemas {
 
     private fun createScheduledScript() = FunctionDeclaration(
         name = "create_scheduled_script",
-        description = "Create a new script (task) with an AI prompt step and a schedule. Use this to schedule recurring AI tasks (like cron jobs). type: interval|hourly|daily|disabled, mode: battery|exact|always_on.",
+        description = "Create a new scheduled automation: one AI prompt step plus a recurrence rule. When the user asks for reminders, periodic checks, or background tasks, plan the prompt and schedule explicitly, call list_scheduled_scripts to avoid duplicate names/rules if needed, then create. type: interval|hourly|daily|disabled; mode: battery (deferred)|exact (alarm)|always_on (foreground service).",
         parameters = buildJsonObject {
             put("type", JsonPrimitive("object"))
             putJsonObject("properties") {
@@ -286,6 +354,121 @@ object ToolSchemas {
                 putJsonObject("minutes") { put("type", JsonPrimitive("integer")) }
             }
             putJsonArray("required") { add(JsonPrimitive("name")); add(JsonPrimitive("prompt")) }
+        }
+    )
+
+    private fun deleteScheduledScript() = FunctionDeclaration(
+        name = "delete_scheduled_script",
+        description = "Delete a scheduled script and cancel its WorkManager/alarms. Use scriptId from list_scheduled_scripts when the user cancels automation or you remove a superseded plan.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("scriptId") { put("type", JsonPrimitive("string")) }
+            }
+            putJsonArray("required") { add(JsonPrimitive("scriptId")) }
+        }
+    )
+
+    private fun memorySaveFact() = FunctionDeclaration(
+        name = "memory_save_fact",
+        description = "Save a structured key/value fact into long-term memory. scope=session ties to the current chat; scope=global is shared across sessions. Use for stable preferences, names, or constraints the user wants remembered.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("factKey") { put("type", JsonPrimitive("string")) }
+                putJsonObject("factValue") { put("type", JsonPrimitive("string")) }
+                putJsonObject("scope") {
+                    put("type", JsonPrimitive("string"))
+                    putJsonArray("enum") {
+                        add(JsonPrimitive("session"))
+                        add(JsonPrimitive("global"))
+                    }
+                }
+            }
+            putJsonArray("required") { add(JsonPrimitive("factKey")); add(JsonPrimitive("factValue")) }
+        }
+    )
+
+    private fun memoryListFacts() = FunctionDeclaration(
+        name = "memory_list_facts",
+        description = "List saved memory facts for session or global scope (most recent first).",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("scope") {
+                    put("type", JsonPrimitive("string"))
+                    putJsonArray("enum") {
+                        add(JsonPrimitive("session"))
+                        add(JsonPrimitive("global"))
+                    }
+                }
+                putJsonObject("limit") { put("type", JsonPrimitive("integer")) }
+            }
+        }
+    )
+
+    private fun memoryDeleteFact() = FunctionDeclaration(
+        name = "memory_delete_fact",
+        description = "Delete a fact by id returned from memory_list_facts.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("id") { put("type", JsonPrimitive("string")) }
+            }
+            putJsonArray("required") { add(JsonPrimitive("id")) }
+        }
+    )
+
+    private fun memorySetSessionSummary() = FunctionDeclaration(
+        name = "memory_set_session_summary",
+        description = "Overwrite the running chat session summary (rolling narrative). Keep it concise; user-visible when memory is injected.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("text") { put("type", JsonPrimitive("string")) }
+            }
+            putJsonArray("required") { add(JsonPrimitive("text")) }
+        }
+    )
+
+    private fun memoryGetSessionSummary() = FunctionDeclaration(
+        name = "memory_get_session_summary",
+        description = "Read the current session summary text.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {}
+        }
+    )
+
+    private fun memorySaveChunk() = FunctionDeclaration(
+        name = "memory_save_chunk",
+        description = "Embed and store a free-text chunk for vector recall (Gemini embedding). scope=session or global. Requires Gemini API key (chat session). Use for salient excerpts the user may ask about later.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("text") { put("type", JsonPrimitive("string")) }
+                putJsonObject("scope") {
+                    put("type", JsonPrimitive("string"))
+                    putJsonArray("enum") {
+                        add(JsonPrimitive("session"))
+                        add(JsonPrimitive("global"))
+                    }
+                }
+            }
+            putJsonArray("required") { add(JsonPrimitive("text")) }
+        }
+    )
+
+    private fun memoryRecall() = FunctionDeclaration(
+        name = "memory_recall",
+        description = "Vector search over stored memory chunks (cosine similarity on Gemini embeddings). Returns top hits with scores for the query.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("query") { put("type", JsonPrimitive("string")) }
+                putJsonObject("topK") { put("type", JsonPrimitive("integer")) }
+            }
+            putJsonArray("required") { add(JsonPrimitive("query")) }
         }
     )
 

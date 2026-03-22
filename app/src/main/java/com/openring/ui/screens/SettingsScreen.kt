@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -47,9 +49,11 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -62,6 +66,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,7 +74,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
@@ -83,8 +87,13 @@ import androidx.compose.ui.zIndex
 import com.openring.ui.theme.Spacing
 import com.openring.R
 import com.openring.security.ApiKeyStore
+import com.openring.localmodel.LocalModelCatalog
+import com.openring.localmodel.LocalModelDownloader
 import com.openring.settings.ModelOption
 import com.openring.settings.ModelStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 import kotlin.math.roundToInt
 
@@ -96,9 +105,34 @@ fun SettingsScreen(onBack: () -> Unit) {
     val modelStore = remember { ModelStore(context) }
 
     val models = remember { mutableStateListOf<ModelOption>() }
+    val scope = rememberCoroutineScope()
+    var downloadingOptionId by remember { mutableStateOf<String?>(null) }
+    var downloadProgress by remember { mutableStateOf<Float?>(null) }
+
     LaunchedEffect(Unit) {
         models.clear()
         models.addAll(modelStore.getModels())
+    }
+
+    fun startLocalDownload(item: ModelOption) {
+        val entry = LocalModelCatalog.byId(item.model) ?: return
+        if (downloadingOptionId != null) return
+        scope.launch {
+            downloadingOptionId = item.id
+            downloadProgress = 0f
+            val result = withContext(Dispatchers.IO) {
+                LocalModelDownloader.download(context, entry) { p ->
+                    scope.launch(Dispatchers.Main) { downloadProgress = p }
+                }
+            }
+            downloadingOptionId = null
+            downloadProgress = null
+            result.onSuccess {
+                Toast.makeText(context, "「${item.label}」下載完成", Toast.LENGTH_SHORT).show()
+            }.onFailure { e ->
+                Toast.makeText(context, "下載失敗：${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     // Dialog states
@@ -180,7 +214,17 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             ModelReorderList(
                 models = models,
-                hasKey = { id -> keyStore.getGeminiApiKeyForModel(id).isNullOrBlank().not() },
+                isModelReady = { item ->
+                    when (item.provider.lowercase()) {
+                        "local" -> LocalModelCatalog.isDownloaded(context, item.model)
+                        else -> keyStore.getGeminiApiKeyForModel(item.id).isNullOrBlank().not()
+                    }
+                },
+                downloadingOptionId = downloadingOptionId,
+                downloadProgress = downloadProgress,
+                onRequestDownload = { id ->
+                    models.firstOrNull { it.id == id }?.let { startLocalDownload(it) }
+                },
                 onReorderCommitted = { modelStore.saveModels(models.toList()) },
                 onRequestEdit = { id -> editDialogModelId = id },
                 onRequestDelete = { id -> deleteDialogModelId = id }
@@ -194,6 +238,12 @@ fun SettingsScreen(onBack: () -> Unit) {
             initial = null,
             onDismiss = { addDialogOpen = false },
             onConfirm = { chosen, key ->
+                if (chosen.provider == ModelProvider.LOCAL) {
+                    if (models.any { it.provider == "local" && it.model == chosen.model }) {
+                        Toast.makeText(context, "清單中已有相同地端模型", Toast.LENGTH_SHORT).show()
+                        return@ModelUpsertDialog
+                    }
+                }
                 val option = ModelOption(
                     id = UUID.randomUUID().toString(),
                     provider = chosen.provider.name.lowercase(),
@@ -202,7 +252,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
                 models.add(option)
                 modelStore.saveModels(models.toList())
-                if (key.isNotBlank()) keyStore.setGeminiApiKeyForModel(option.id, key)
+                if (chosen.provider != ModelProvider.LOCAL && key.isNotBlank()) {
+                    keyStore.setGeminiApiKeyForModel(option.id, key)
+                }
                 addDialogOpen = false
             }
         )
@@ -211,12 +263,28 @@ fun SettingsScreen(onBack: () -> Unit) {
     val editTarget = editDialogModelId?.let { id -> models.firstOrNull { it.id == id } }
     if (editTarget != null) {
         val currentKey = keyStore.getGeminiApiKeyForModel(editTarget.id).orEmpty()
+        val editInitial =
+            if (editTarget.provider == "local") {
+                KNOWN_LOCAL_MODELS.firstOrNull { editTarget.model == it.model }
+                    ?: KNOWN_LOCAL_MODELS.first()
+            } else {
+                KNOWN_MODELS.firstOrNull { editTarget.model == it.model } ?: KNOWN_MODELS.first()
+            }
         ModelUpsertDialog(
             title = "編輯模型",
-            initial = KNOWN_MODELS.firstOrNull { editTarget.model == it.model } ?: KNOWN_MODELS.first(),
+            initial = editInitial,
             initialKey = currentKey,
             onDismiss = { editDialogModelId = null },
             onConfirm = { chosen, key ->
+                if (chosen.provider == ModelProvider.LOCAL) {
+                    val dup = models.any {
+                        it.id != editTarget.id && it.provider == "local" && it.model == chosen.model
+                    }
+                    if (dup) {
+                        Toast.makeText(context, "清單中已有相同地端模型", Toast.LENGTH_SHORT).show()
+                        return@ModelUpsertDialog
+                    }
+                }
                 val idx = models.indexOfFirst { it.id == editTarget.id }
                 if (idx >= 0) {
                     models[idx] = models[idx].copy(
@@ -226,8 +294,12 @@ fun SettingsScreen(onBack: () -> Unit) {
                     )
                     modelStore.saveModels(models.toList())
                 }
-                if (key.isBlank()) keyStore.clearGeminiApiKeyForModel(editTarget.id)
-                else keyStore.setGeminiApiKeyForModel(editTarget.id, key)
+                if (chosen.provider == ModelProvider.LOCAL) {
+                    keyStore.clearGeminiApiKeyForModel(editTarget.id)
+                } else {
+                    if (key.isBlank()) keyStore.clearGeminiApiKeyForModel(editTarget.id)
+                    else keyStore.setGeminiApiKeyForModel(editTarget.id, key)
+                }
                 editDialogModelId = null
             }
         )
@@ -238,12 +310,20 @@ fun SettingsScreen(onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { deleteDialogModelId = null },
             title = { Text("刪除模型") },
-            text = { Text("確定要刪除「${deleteTarget.label}」嗎？此模型的 API Key 也會一併移除。") },
+            text = {
+                val extra =
+                    if (deleteTarget.provider == "local") "已下載的地端檔案也會從本機刪除。"
+                    else "此模型的 API Key 也會一併移除。"
+                Text("確定要刪除「${deleteTarget.label}」嗎？$extra")
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
                         val idx = models.indexOfFirst { it.id == deleteTarget.id }
                         if (idx >= 0) {
+                            if (deleteTarget.provider == "local") {
+                                LocalModelCatalog.deleteDownloaded(context, deleteTarget.model)
+                            }
                             models.removeAt(idx)
                             modelStore.saveModels(models.toList())
                         }
@@ -260,7 +340,10 @@ fun SettingsScreen(onBack: () -> Unit) {
 @Composable
 private fun ModelReorderList(
     models: androidx.compose.runtime.snapshots.SnapshotStateList<ModelOption>,
-    hasKey: (String) -> Boolean,
+    isModelReady: (ModelOption) -> Boolean,
+    downloadingOptionId: String?,
+    downloadProgress: Float?,
+    onRequestDownload: (String) -> Unit,
     onReorderCommitted: () -> Unit,
     onRequestEdit: (String) -> Unit,
     onRequestDelete: (String) -> Unit,
@@ -289,7 +372,7 @@ private fun ModelReorderList(
             ) {
                 itemsIndexed(models, key = { _, it -> it.id }) { index, item ->
                 val isDragging = draggingIndex == index
-                val keySet = hasKey(item.id)
+                val ready = isModelReady(item)
                 val menuExpanded = lastMenuFor == item.id
 
                 fun reorderToTarget(current: Int, targetIndex: Int) {
@@ -354,7 +437,10 @@ private fun ModelReorderList(
                 ) {
                     ModelListCardContent(
                         item = item,
-                        keySet = keySet,
+                        readyForUse = ready,
+                        downloading = downloadingOptionId == item.id,
+                        downloadProgress = if (downloadingOptionId == item.id) downloadProgress else null,
+                        onRequestDownload = { onRequestDownload(item.id) },
                         menuExpanded = menuExpanded,
                         onMenuClick = { lastMenuFor = if (menuExpanded) null else item.id },
                         onRequestEdit = { onRequestEdit(item.id) },
@@ -369,7 +455,10 @@ private fun ModelReorderList(
         DraggingOverlayIfNeeded(
             draggingItemId = draggingItemId,
             models = models,
-            hasKey = hasKey,
+            isModelReady = isModelReady,
+            downloadingOptionId = downloadingOptionId,
+            downloadProgress = downloadProgress,
+            onRequestDownload = onRequestDownload,
             draggedItemY = draggedItemY,
             boxTopY = boxTopY,
             dragOffsetY = dragOffsetY,
@@ -384,7 +473,10 @@ private fun ModelReorderList(
 private fun DraggingOverlayIfNeeded(
     draggingItemId: String?,
     models: List<ModelOption>,
-    hasKey: (String) -> Boolean,
+    isModelReady: (ModelOption) -> Boolean,
+    downloadingOptionId: String?,
+    downloadProgress: Float?,
+    onRequestDownload: (String) -> Unit,
     draggedItemY: Float,
     boxTopY: Float,
     dragOffsetY: Float,
@@ -393,10 +485,13 @@ private fun DraggingOverlayIfNeeded(
 ) {
     val item = draggingItemId?.let { id -> models.find { it.id == id } }
     if (item != null) {
-        val keySet = hasKey(item.id)
+        val ready = isModelReady(item)
         DraggingOverlay(
             item = item,
-            keySet = keySet,
+            readyForUse = ready,
+            downloading = downloadingOptionId == item.id,
+            downloadProgress = if (downloadingOptionId == item.id) downloadProgress else null,
+            onRequestDownload = { onRequestDownload(item.id) },
             draggedItemY = draggedItemY,
             boxTopY = boxTopY,
             dragOffsetY = dragOffsetY,
@@ -409,7 +504,10 @@ private fun DraggingOverlayIfNeeded(
 @Composable
 private fun DraggingOverlay(
     item: ModelOption,
-    keySet: Boolean,
+    readyForUse: Boolean,
+    downloading: Boolean,
+    downloadProgress: Float?,
+    onRequestDownload: () -> Unit,
     draggedItemY: Float,
     boxTopY: Float,
     dragOffsetY: Float,
@@ -436,7 +534,10 @@ private fun DraggingOverlay(
         ) {
             ModelListCardContent(
                 item = item,
-                keySet = keySet,
+                readyForUse = readyForUse,
+                downloading = downloading,
+                downloadProgress = downloadProgress,
+                onRequestDownload = onRequestDownload,
                 menuExpanded = false,
                 onMenuClick = { },
                 onRequestEdit = { },
@@ -451,7 +552,10 @@ private fun DraggingOverlay(
 @Composable
 private fun ModelListCardContent(
     item: ModelOption,
-    keySet: Boolean,
+    readyForUse: Boolean,
+    downloading: Boolean,
+    downloadProgress: Float?,
+    onRequestDownload: () -> Unit,
     menuExpanded: Boolean,
     onMenuClick: () -> Unit,
     onRequestEdit: () -> Unit,
@@ -498,11 +602,65 @@ private fun ModelListCardContent(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Text(
-                if (keySet) "API Key：已設定" else "API Key：未設定",
-                style = MaterialTheme.typography.bodySmall,
-                color = if (keySet) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
-            )
+            if (item.provider.equals("local", ignoreCase = true)) {
+                val entry = LocalModelCatalog.byId(item.model)
+                val sizeMb = entry?.let { (it.sizeBytesApprox / (1024 * 1024)).toString() } ?: "—"
+                Text(
+                    "約 ${sizeMb} MB · 地端檔案",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                when {
+                    downloading -> {
+                        Text("下載中…", style = MaterialTheme.typography.bodySmall)
+                        if (downloadProgress != null) {
+                            LinearProgressIndicator(
+                                progress = { downloadProgress },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp)
+                            )
+                        } else {
+                            LinearProgressIndicator(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp)
+                            )
+                        }
+                    }
+                    readyForUse ->
+                        Text(
+                            "地端檔案：已下載",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    else ->
+                        Text(
+                            "地端檔案：未下載",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                }
+            } else {
+                Text(
+                    if (readyForUse) "API Key：已設定" else "API Key：未設定",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (readyForUse) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
+                )
+            }
+        }
+
+        if (item.provider.equals("local", ignoreCase = true) && !downloading && !readyForUse && showMenu) {
+            IconButton(
+                onClick = onRequestDownload,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    Icons.Default.CloudDownload,
+                    contentDescription = "下載地端模型",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
 
         if (showMenu) {
@@ -641,6 +799,8 @@ private fun ModelPickerSheet(
     }
 }
 
+private enum class ModelSourceMode { CLOUD, LOCAL }
+
 @Composable
 private fun ModelUpsertDialog(
     title: String,
@@ -651,13 +811,31 @@ private fun ModelUpsertDialog(
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var showModelPicker by remember { mutableStateOf(false) }
-    var selected by remember { mutableStateOf(initial ?: KNOWN_MODELS.first()) }
+    var sourceMode by remember {
+        mutableStateOf(
+            if (initial?.provider == ModelProvider.LOCAL) ModelSourceMode.LOCAL else ModelSourceMode.CLOUD
+        )
+    }
+    var selected by remember {
+        mutableStateOf(
+            initial ?: KNOWN_MODELS.first()
+        )
+    }
     var apiKey by remember { mutableStateOf(initialKey) }
     var reveal by remember { mutableStateOf(false) }
 
+    LaunchedEffect(initial?.model, initial?.provider) {
+        if (initial != null) {
+            sourceMode = if (initial.provider == ModelProvider.LOCAL) ModelSourceMode.LOCAL else ModelSourceMode.CLOUD
+            selected = initial
+        }
+    }
+
+    val pickerModels = if (sourceMode == ModelSourceMode.LOCAL) KNOWN_LOCAL_MODELS else KNOWN_MODELS
+
     if (showModelPicker) {
         ModelPickerSheet(
-            models = KNOWN_MODELS,
+            models = pickerModels,
             selected = selected,
             onDismiss = { showModelPicker = false },
             onSelect = { selected = it; showModelPicker = false }
@@ -669,6 +847,28 @@ private fun ModelUpsertDialog(
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    RadioButton(
+                        selected = sourceMode == ModelSourceMode.CLOUD,
+                        onClick = {
+                            sourceMode = ModelSourceMode.CLOUD
+                            selected = KNOWN_MODELS.first()
+                        }
+                    )
+                    Text("雲端 API", style = MaterialTheme.typography.bodyMedium)
+                    RadioButton(
+                        selected = sourceMode == ModelSourceMode.LOCAL,
+                        onClick = {
+                            sourceMode = ModelSourceMode.LOCAL
+                            selected = KNOWN_LOCAL_MODELS.first()
+                        }
+                    )
+                    Text("地端模型", style = MaterialTheme.typography.bodyMedium)
+                }
+
                 OutlinedTextField(
                     value = "${selected.provider.displayName} · ${selected.label}",
                     onValueChange = {},
@@ -690,32 +890,45 @@ private fun ModelUpsertDialog(
                     }
                 )
 
-                OutlinedTextField(
-                    value = apiKey,
-                    onValueChange = { apiKey = it },
-                    label = { Text("API Key") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { reveal = !reveal }) {
-                            Icon(
-                                imageVector = if (reveal) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (reveal) "隱藏" else "顯示"
-                            )
+                if (sourceMode == ModelSourceMode.CLOUD) {
+                    OutlinedTextField(
+                        value = apiKey,
+                        onValueChange = { apiKey = it },
+                        label = { Text("API Key") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { reveal = !reveal }) {
+                                Icon(
+                                    imageVector = if (reveal) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                    contentDescription = if (reveal) "隱藏" else "顯示"
+                                )
+                            }
                         }
-                    }
-                )
+                    )
 
-                TextButton(
-                    onClick = {
-                        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(selected.provider.apiKeyUrl)))
-                    }
-                ) { Text("取得 API Key") }
+                    TextButton(
+                        onClick = {
+                            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(selected.provider.apiKeyUrl)))
+                        }
+                    ) { Text("取得 API Key") }
+                } else {
+                    Text(
+                        "地端模型需下載檔案後才能使用；新增後可在清單中點擊雲端下載圖示開始下載。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(selected, apiKey) }) { Text("確認") }
+            TextButton(
+                onClick = {
+                    val keyOut = if (sourceMode == ModelSourceMode.LOCAL) "" else apiKey
+                    onConfirm(selected, keyOut)
+                }
+            ) { Text("確認") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("取消") }

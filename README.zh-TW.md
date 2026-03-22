@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" alt="OpenRing Logo" width="120" height="120">
+  <img src="docs/assets/openring-logo.png" alt="OpenRing 標誌" width="128" height="128">
   
   <h1>OpenRing</h1>
   <p><b>基於 Android AccessibilityService 的輕量化手機 RPA 工作流引擎</b></p>
@@ -9,6 +9,8 @@
   [![Platform](https://img.shields.io/badge/Platform-Android-green.svg)](https://developer.android.com)
   [![Language](https://img.shields.io/badge/Language-Kotlin-purple.svg)](https://kotlinlang.org/)
   [![Build](https://img.shields.io/badge/Build-Gradle-blueviolet.svg)](https://gradle.org/)
+  [![Android CI](https://github.com/SunZhi-Will/OpenRing/actions/workflows/android-ci.yml/badge.svg)](https://github.com/SunZhi-Will/OpenRing/actions/workflows/android-ci.yml)
+  [![CodeQL](https://github.com/SunZhi-Will/OpenRing/actions/workflows/codeql.yml/badge.svg)](https://github.com/SunZhi-Will/OpenRing/actions/workflows/codeql.yml)
   [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
   
   <br/>
@@ -118,6 +120,7 @@ cd OpenRing
 | [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md) | 產品功能待辦清單、使用者故事與優先級評估 |
 | [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md) | 腳本引擎支援的 JSON 格式定義與動作清單 |
 | [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | 團隊分工與 AI 開發的系統 Prompt 參考 |
+| [CI_CD.md](docs/technical/CI_CD.md) | GitHub Actions（除錯版 APK 產物、CodeQL、Dependabot、Dependency Review） |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 完整的開源貢獻指南與 PR 提交流程 |
 
 ---
@@ -140,6 +143,12 @@ cd OpenRing
 
 如果您發現了任何安全漏洞，請**不要**在公開的 Issue 中回報。
 請參閱我們的 [安全政策 (SECURITY.md)](SECURITY.md) 以了解如何私下聯絡我們並協助修復問題。
+
+---
+
+## 🔁 CI/CD 與自動化檢查
+
+GitHub Actions 會在每次 push／PR 建置 **debug APK**（於該次 workflow 執行頁面的 **Artifacts** 下載），並在 Gradle 建置成功後對 Java／Kotlin 執行 **CodeQL** 靜態分析；另透過 **Dependency Review** 與 **Dependabot** 協助發現有風險或過期的相依套件。詳見 [docs/technical/CI_CD.md](docs/technical/CI_CD.md)。
 
 ---
 

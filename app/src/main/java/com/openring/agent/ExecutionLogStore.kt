@@ -17,6 +17,11 @@ object ExecutionLogStore {
         _entries.value = emptyList()
     }
 
+    /** 切換對話或從資料庫還原時，取代記憶體中的執行紀錄（仍受 MAX_ENTRIES 限制）。 */
+    fun replaceAll(entries: List<ChatLogEntry>) {
+        _entries.value = if (entries.size > MAX_ENTRIES) entries.takeLast(MAX_ENTRIES) else entries
+    }
+
     fun add(entry: ChatLogEntry) {
         _entries.update { old ->
             val next = old + entry

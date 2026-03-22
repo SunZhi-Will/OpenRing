@@ -248,6 +248,34 @@
 
 ---
 
+### US-3.6 工作流模板庫／捷徑
+**作為** 使用者  
+**我想要** 從內建或匯入的模板一鍵建立腳本，或啟動常見跨 App 流程的捷徑  
+**以便** 降低首次成功門檻，接近「一句話閉環」體驗  
+
+**驗收條件：**
+- [ ] 提供至少一組可選模板（可為內建 JSON／腳本範例）
+- [ ] 一鍵從模板建立新腳本或複製至編輯器
+- [ ] （可選）模板或捷徑可與 Chat 指令關聯
+
+**優先級：** P1 | **預估：** 5 SP
+
+---
+
+### US-3.7 排程可靠度說明與使用者指引
+**作為** 使用者  
+**我想要** 在設定或排程畫面理解為何排程可能延遲或被系統限制  
+**以便** 依指引調整省電／後台設定，提升準點執行機率  
+
+**驗收條件：**
+- [ ] 以使用者可讀方式說明 Doze／OEM 後台限制對排程的影響
+- [ ] 提供可操作的系統設定捷徑或檢查清單（依 OS 版本力所能及）
+- [ ] 與現有 Scheduler／AlarmManager 行為一致，不誇大保證
+
+**優先級：** P2 | **預估：** 3 SP
+
+---
+
 ## Epic 4：Chat-Driven OS 與 ReAct 循環（Gemini）
 
 ### US-4.1 主控對話室（Chat-Driven OS）
@@ -317,7 +345,7 @@
 - [ ] 至少支援以下 tool：`get_view_tree`、`find_and_click`、`click_node`、`swipe`、`back`、`home`、`extract_text`
 - [ ] tool result 回傳包含明確錯誤碼（例如 `NODE_NOT_FOUND`、`ACTION_FAILED`）
 - [ ] dispatcher 可將工具結果以結構化 JSON 回填給 Gemini
-- [ ] 支援 `call_skill` 工具（見 Epic 5）
+- [x] 支援 `call_skill` 工具（見 Epic 5）
 
 **優先級：** P0 | **預估：** 8 SP
 
@@ -346,9 +374,9 @@
 **以便** 讓 Gemini 透過 `call_skill` 取得計算/資料結果  
 
 **驗收條件：**
-- [ ] QuickJS runtime 可初始化且可重複執行
+- [x] QuickJS runtime 可初始化且可重複執行
 - [ ] 能限制執行時間（timeout）並在逾時回傳可追蹤錯誤
-- [ ] JS 執行結果可序列化回 host（JSON-friendly）
+- [x] JS 執行結果可序列化回 host（JSON-friendly）
 
 **優先級：** P0 | **預估：** 8 SP
 
@@ -360,9 +388,9 @@
 **以便** Gemini 與 host 能正確理解並安全執行  
 
 **驗收條件：**
-- [ ] 支援讀取 `manifest.json`（包含 name/description/inputSchema/outputSchema/permissions）
-- [ ] host 可驗證 schema（至少：必填欄位、型別）
-- [ ] manifest 欄位缺失時回傳明確錯誤（skill_invalid_manifest）
+- [x] 支援讀取 `manifest.json`（包含 name/description/inputSchema/outputSchema/permissions）
+- [x] host 可驗證 schema（至少：必填欄位、型別；`name` 必填，`inputSchema`/`outputSchema` 若存在須為 object）
+- [x] manifest 欄位缺失時回傳明確錯誤（`INVALID_MANIFEST` / 安裝失敗訊息）
 
 **優先級：** P0 | **預估：** 5 SP
 
@@ -374,9 +402,9 @@
 **以便** 把 return value 回填給 Gemini 作為後續推理依據  
 
 **驗收條件：**
-- [ ] JS 技能以標準入口導出（例如 `export function run(input)` 或固定函數名）
-- [ ] host 將 return value 轉為 JSON 並回傳給 Gemini
-- [ ] JS error / throw 能映射為結構化錯誤（skill_runtime_error）
+- [x] JS 技能以標準入口導出（例如 `export function run(input)` 或固定函數名）
+- [x] host 將 return value 轉為 JSON 並回傳給 Gemini
+- [x] JS error / throw 能映射為結構化錯誤（`SKILL_RUNTIME_ERROR`）
 
 **優先級：** P0 | **預估：** 5 SP
 
@@ -388,9 +416,9 @@
 **以便** 快速驗證插件能力  
 
 **驗收條件：**
-- [ ] 可從檔案選擇器匯入 `.zip`（MVP）
-- [ ] zip 內包含 `manifest.json` 與 `script.js`（或約定路徑）
-- [ ] 安裝完成後在技能清單中可見並可啟用/停用
+- [x] 可從檔案選擇器匯入 `.zip`（MVP）
+- [x] zip 內包含 `manifest.json` 與 `script.js`（或約定路徑）
+- [x] 安裝完成後在技能清單中可見並可啟用/停用
 
 **優先級：** P0 | **預估：** 5 SP
 
@@ -418,7 +446,7 @@
 **以便** 讓社群能力能快速擴散  
 
 **驗收條件：**
-- [ ] 可貼上 GitHub URL（或 repo/zip release URL）並下載匯入
+- [x] 可貼上 GitHub URL（或 repo/zip release URL）並下載匯入（與白名單 URL 安裝相同流程；Skills 畫面「從 URL 安裝」）
 - [ ] 更新同名技能時可提示版本差異（MVP 可簡化）
 
 **優先級：** P1 | **預估：** 5 SP
@@ -712,6 +740,34 @@
 
 ---
 
+### US-3.6 Workflow Template Library / Shortcuts
+**As a** user  
+**I want to** create a script from built-in or imported templates with one tap, or launch shortcuts for common cross-App flows  
+**so that** the first-success barrier is lower and the experience moves toward a "one-sentence closed loop"  
+
+**Acceptance Criteria:**
+- [ ] Provides at least one selectable template (built-in JSON / script samples)
+- [ ] One tap creates a new script from a template or copies into the editor
+- [ ] (Optional) Templates or shortcuts can be linked to Chat commands
+
+**Priority:** P1 | **Estimate:** 5 SP
+
+---
+
+### US-3.7 Scheduling Reliability Explanation & User Guidance
+**As a** user  
+**I want to** understand in Settings or the schedule screen why runs may be delayed or constrained by the system  
+**so that** I can follow guidance to adjust battery / background settings and improve on-time execution odds  
+
+**Acceptance Criteria:**
+- [ ] Explains in plain language how Doze / OEM background limits affect scheduling
+- [ ] Provides actionable system-setting shortcuts or a checklist (as feasible per OS version)
+- [ ] Consistent with existing Scheduler / AlarmManager behavior; no overstated guarantees
+
+**Priority:** P2 | **Estimate:** 3 SP
+
+---
+
 ## Epic 4: Chat-Driven OS and ReAct Loop (Gemini)
 
 ### US-4.1 Main Chat Room (Chat-Driven OS)
@@ -781,7 +837,7 @@
 - [ ] Supports at least the following tools: `get_view_tree`, `find_and_click`, `click_node`, `swipe`, `back`, `home`, `extract_text`
 - [ ] Tool result returns include explicit error codes (e.g., `NODE_NOT_FOUND`, `ACTION_FAILED`)
 - [ ] Dispatcher can feed back tool results to Gemini in structured JSON
-- [ ] Supports `call_skill` tool (see Epic 5)
+- [x] Supports `call_skill` tool (see Epic 5)
 
 **Priority:** P0 | **Estimate:** 8 SP
 
@@ -810,9 +866,9 @@
 **so that** Gemini obtains computation/data results via `call_skill`  
 
 **Acceptance Criteria:**
-- [ ] QuickJS runtime can be initialized and executed repeatedly
+- [x] QuickJS runtime can be initialized and executed repeatedly
 - [ ] Can limit execution time (timeout) and return traceable errors on timeout
-- [ ] JS execution results can be serialized back to the host (JSON-friendly)
+- [x] JS execution results can be serialized back to the host (JSON-friendly)
 
 **Priority:** P0 | **Estimate:** 8 SP
 
@@ -824,9 +880,9 @@
 **so that** Gemini and host can understand correctly and execute securely  
 
 **Acceptance Criteria:**
-- [ ] Supports reading `manifest.json` (including name/description/inputSchema/outputSchema/permissions)
-- [ ] Host can validate schema (at least: required fields, types)
-- [ ] Returns explicit error when manifest fields are missing (skill_invalid_manifest)
+- [x] Supports reading `manifest.json` (including name/description/inputSchema/outputSchema/permissions)
+- [x] Host can validate schema (at least: required fields, types; `name` required; `inputSchema`/`outputSchema` if present must be objects)
+- [x] Returns explicit error when manifest fields are missing (`INVALID_MANIFEST` / install error message)
 
 **Priority:** P0 | **Estimate:** 5 SP
 
@@ -838,9 +894,9 @@
 **so that** the return value is fed back to Gemini as basis for subsequent reasoning  
 
 **Acceptance Criteria:**
-- [ ] JS skills are exported with standard entry points (e.g., `export function run(input)` or fixed function name)
-- [ ] Host converts return value to JSON and feeds back to Gemini
-- [ ] JS error / throw can be mapped to structured error (skill_runtime_error)
+- [x] JS skills are exported with standard entry points (e.g., `export function run(input)` or fixed function name)
+- [x] Host converts return value to JSON and feeds back to Gemini
+- [x] JS error / throw can be mapped to structured error (`SKILL_RUNTIME_ERROR`)
 
 **Priority:** P0 | **Estimate:** 5 SP
 
@@ -852,9 +908,9 @@
 **so that** plugin capabilities can be quickly validated  
 
 **Acceptance Criteria:**
-- [ ] Can import `.zip` from file picker (MVP)
-- [ ] Zip contains `manifest.json` and `script.js` (or convention path)
-- [ ] Visible in skill list after installation and can be enabled/disabled
+- [x] Can import `.zip` from file picker (MVP)
+- [x] Zip contains `manifest.json` and `script.js` (or convention path)
+- [x] Visible in skill list after installation and can be enabled/disabled
 
 **Priority:** P0 | **Estimate:** 5 SP
 
@@ -882,7 +938,7 @@
 **so that** community capabilities can quickly spread  
 
 **Acceptance Criteria:**
-- [ ] Can paste GitHub URL (or repo/zip release URL) to download and import
+- [x] Can paste GitHub URL (or repo/zip release URL) to download and import (same as allowlisted URL install; Skills screen “Install from URL”)
 - [ ] Prompts version difference when updating skill of the same name (MVP can simplify)
 
 **Priority:** P1 | **Estimate:** 5 SP

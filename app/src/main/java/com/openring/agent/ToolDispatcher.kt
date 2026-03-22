@@ -8,19 +8,25 @@ import com.openring.core.ViewNodeUtils
 import com.openring.core.model.ActionResult
 import com.openring.core.model.ErrorCode
 import com.openring.core.model.ViewNode
+import com.openring.data.MemoryRepository
+import com.openring.data.ScriptStore
 import com.openring.data.db.OpenRingDatabase
 import com.openring.data.model.Schedule
 import com.openring.domain.Scheduler
 import com.openring.settings.AiPromptStore
 import com.openring.settings.ScanCache
-import com.openring.skills.SkillInstall
+import com.openring.skills.InstalledSkillStore
 import com.openring.skills.SkillAllowedSourcesStore
 import com.openring.skills.SkillEnabledStore
+import com.openring.skills.SkillInstall
+import com.openring.skills.SkillQuickJsExecutor
+import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
@@ -52,6 +58,24 @@ class ToolDispatcher(
     }
 
     fun dispatch(name: String, args: JsonObject): ToolResult {
+        when {
+            name == "call_skill" -> {
+                val skillId = args["skill"]?.jsonPrimitive?.content
+                    ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing skill")
+                val input = args["input"]?.jsonObject ?: buildJsonObject { }
+                return executeSkill(skillId, input)
+            }
+
+            name.startsWith("skill_") -> {
+                val skillId = name.removePrefix("skill_")
+                return executeSkill(skillId, args)
+            }
+
+            name.startsWith("memory_") -> {
+                return dispatchMemoryTool(name, args)
+            }
+        }
+
         val service = OpenRingAccessibilityService.getInstance()
             ?: return ToolResult(false, ErrorCode.PERMISSION_DENIED.name, "AccessibilityService 未啟用")
 
@@ -290,21 +314,57 @@ class ToolDispatcher(
                 })
             }
 
-            "call_skill" -> {
-                val skillId = args["skill"]?.jsonPrimitive?.content
-                    ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing skill")
-
-                val enabled = SkillEnabledStore(context).isEnabled(skillId)
-                if (!enabled) {
-                    return ToolResult(
-                        ok = false,
-                        code = "SKILL_DISABLED",
-                        message = "Skill disabled: $skillId"
-                    )
+            "list_scheduled_scripts" -> {
+                runBlocking {
+                    val db = OpenRingDatabase.getDatabase(context)
+                    val dao = db.scriptDao()
+                    val store = ScriptStore(dao)
+                    val scripts = dao.getAllScriptsOnce()
+                    val data = buildJsonObject {
+                        putJsonArray("scripts") {
+                            for (script in scripts) {
+                                val sched = store.parseSchedule(script.scheduleJson)
+                                val steps = store.parseSteps(script.stepsJson)
+                                val promptPreview = steps.firstOrNull { it.type == "ai_action" }
+                                    ?.getParam("prompt")
+                                    ?.take(300).orEmpty()
+                                add(buildJsonObject {
+                                    put("scriptId", script.id)
+                                    put("name", script.name)
+                                    put("enabled", sched.enabled)
+                                    put("scheduleType", sched.type)
+                                    put("scheduleMode", sched.mode)
+                                    put("hour", sched.hour)
+                                    put("minute", sched.minute)
+                                    put("intervalMinutes", sched.minutes)
+                                    put("promptPreview", promptPreview)
+                                })
+                            }
+                        }
+                        put("count", scripts.size)
+                    }
+                    ToolResult(true, data = data)
                 }
+            }
 
-                // 技術債：QuickJS runtime / wiring 尚未完成時，仍回傳目前的錯誤碼。
-                ToolResult(false, ErrorCode.PERMISSION_DENIED.name, "Skill engine not implemented yet")
+            "delete_scheduled_script" -> {
+                val scriptId = args["scriptId"]?.jsonPrimitive?.content
+                    ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing scriptId")
+                runBlocking {
+                    val db = OpenRingDatabase.getDatabase(context)
+                    val dao = db.scriptDao()
+                    val existing = dao.getScriptById(scriptId)
+                    if (existing == null) {
+                        ToolResult(false, "SCRIPT_NOT_FOUND", "No script with id: $scriptId")
+                    } else {
+                        ScriptStore(dao).deleteScript(scriptId)
+                        Scheduler(context).cancelScript(scriptId)
+                        ToolResult(true, data = buildJsonObject {
+                            put("scriptId", scriptId)
+                            put("deleted", true)
+                        })
+                    }
+                }
             }
 
             "create_scheduled_script" -> {
@@ -416,6 +476,191 @@ class ToolDispatcher(
 
             else -> ToolResult(false, "UNKNOWN_TOOL", "Unknown tool: $name")
         }
+    }
+
+    private fun dispatchMemoryTool(name: String, args: JsonObject): ToolResult {
+        val sessionId = ActiveChatContext.sessionId
+        val apiKey = ActiveChatContext.geminiApiKey
+        val repo = MemoryRepository(context)
+        return runBlocking {
+            when (name) {
+                "memory_save_fact" -> {
+                    val factKey = args["factKey"]?.jsonPrimitive?.content
+                        ?: return@runBlocking ToolResult(false, "INVALID_ARGUMENT", "Missing factKey")
+                    val factValue = args["factValue"]?.jsonPrimitive?.content
+                        ?: return@runBlocking ToolResult(false, "INVALID_ARGUMENT", "Missing factValue")
+                    val scope = args["scope"]?.jsonPrimitive?.content ?: "session"
+                    if (scope != "session" && scope != "global") {
+                        return@runBlocking ToolResult(
+                            false,
+                            "INVALID_ARGUMENT",
+                            "scope must be session or global"
+                        )
+                    }
+                    val sid = when (scope) {
+                        "global" -> ""
+                        else -> sessionId
+                            ?: return@runBlocking ToolResult(false, "NO_SESSION", "No active chat session")
+                    }
+                    val id = repo.saveFact(scope, sid, factKey, factValue)
+                    ToolResult(true, data = buildJsonObject { put("id", id) })
+                }
+
+                "memory_list_facts" -> {
+                    val scope = args["scope"]?.jsonPrimitive?.content ?: "session"
+                    if (scope != "session" && scope != "global") {
+                        return@runBlocking ToolResult(false, "INVALID_ARGUMENT", "Invalid scope")
+                    }
+                    val limit = args["limit"]?.jsonPrimitive?.content?.toIntOrNull()?.coerceIn(1, 100) ?: 24
+                    val sid = when (scope) {
+                        "global" -> ""
+                        else -> sessionId ?: ""
+                    }
+                    val rows = repo.listFacts(scope, sid, limit)
+                    ToolResult(true, data = buildJsonObject {
+                        putJsonArray("facts") {
+                            for (it in rows) {
+                                add(buildJsonObject {
+                                    put("id", it.id)
+                                    put("factKey", it.factKey)
+                                    put("factValue", it.factValue.take(2000))
+                                    put("scope", it.scope)
+                                    put("updatedAtMs", it.updatedAtMs)
+                                })
+                            }
+                        }
+                        put("count", rows.size)
+                    })
+                }
+
+                "memory_delete_fact" -> {
+                    val id = args["id"]?.jsonPrimitive?.content
+                        ?: return@runBlocking ToolResult(false, "INVALID_ARGUMENT", "Missing id")
+                    val ok = repo.deleteFact(id)
+                    if (!ok) {
+                        ToolResult(false, "NOT_FOUND", "Fact not found")
+                    } else {
+                        ToolResult(true, data = buildJsonObject { put("deleted", true); put("id", id) })
+                    }
+                }
+
+                "memory_set_session_summary" -> {
+                    val sid = sessionId
+                        ?: return@runBlocking ToolResult(false, "NO_SESSION", "No active chat session")
+                    val text = args["text"]?.jsonPrimitive?.content
+                        ?: return@runBlocking ToolResult(false, "INVALID_ARGUMENT", "Missing text")
+                    repo.setSessionSummary(sid, text)
+                    ToolResult(true, data = buildJsonObject { put("updated", true) })
+                }
+
+                "memory_get_session_summary" -> {
+                    val sid = sessionId
+                        ?: return@runBlocking ToolResult(false, "NO_SESSION", "No active chat session")
+                    val summary = repo.getSessionSummary(sid)
+                    ToolResult(true, data = buildJsonObject { put("summary", summary) })
+                }
+
+                "memory_save_chunk" -> {
+                    if (apiKey.isNullOrBlank()) {
+                        return@runBlocking ToolResult(
+                            false,
+                            "NO_API_KEY",
+                            "Gemini API key required for embeddings. Chat with a Gemini model configured with a key."
+                        )
+                    }
+                    val text = args["text"]?.jsonPrimitive?.content
+                        ?: return@runBlocking ToolResult(false, "INVALID_ARGUMENT", "Missing text")
+                    val scope = args["scope"]?.jsonPrimitive?.content ?: "session"
+                    if (scope != "session" && scope != "global") {
+                        return@runBlocking ToolResult(false, "INVALID_ARGUMENT", "scope must be session or global")
+                    }
+                    val sid = when (scope) {
+                        "global" -> ""
+                        else -> sessionId
+                            ?: return@runBlocking ToolResult(false, "NO_SESSION", "No active chat session")
+                    }
+                    val id = repo.saveVectorChunk(apiKey, scope, sid, text)
+                    ToolResult(true, data = buildJsonObject { put("id", id) })
+                }
+
+                "memory_recall" -> {
+                    if (apiKey.isNullOrBlank()) {
+                        return@runBlocking ToolResult(
+                            false,
+                            "NO_API_KEY",
+                            "Gemini API key required for query embedding."
+                        )
+                    }
+                    val sid = sessionId
+                        ?: return@runBlocking ToolResult(false, "NO_SESSION", "No active chat session")
+                    val query = args["query"]?.jsonPrimitive?.content
+                        ?: return@runBlocking ToolResult(false, "INVALID_ARGUMENT", "Missing query")
+                    val topK = args["topK"]?.jsonPrimitive?.content?.toIntOrNull()?.coerceIn(1, 20) ?: 6
+                    val hits = repo.vectorRecall(apiKey, sid, query, topK)
+                    ToolResult(true, data = buildJsonObject {
+                        putJsonArray("hits") {
+                            for ((score, chunk) in hits) {
+                                add(buildJsonObject {
+                                    put("score", score.toDouble())
+                                    put("text", chunk.take(4000))
+                                })
+                            }
+                        }
+                        put("count", hits.size)
+                    })
+                }
+
+                else -> ToolResult(false, "UNKNOWN_TOOL", "Unknown memory tool: $name")
+            }
+        }
+    }
+
+    private fun executeSkill(skillId: String, input: JsonObject): ToolResult {
+        val trimmed = skillId.trim()
+        if (trimmed.isBlank()) {
+            return ToolResult(false, "INVALID_ARGUMENT", "Empty skill id")
+        }
+        val store = InstalledSkillStore(context)
+        val canonicalId = store.getInstalledIds().firstOrNull { it.equals(trimmed, ignoreCase = true) }
+            ?: return ToolResult(false, "SKILL_NOT_INSTALLED", "Skill not installed: $trimmed")
+        if (!SkillEnabledStore(context).isEnabled(canonicalId)) {
+            return ToolResult(
+                false,
+                "SKILL_DISABLED",
+                "Skill disabled: $canonicalId. Enable it in the Skills screen."
+            )
+        }
+        val dir = store.getSkillDir(context, canonicalId)
+            ?: return ToolResult(false, "SKILL_NOT_FOUND", "Skill directory missing: $canonicalId")
+        val scriptFile = File(dir, "script.js")
+        if (!scriptFile.isFile) {
+            return ToolResult(false, "INVALID_SKILL", "script.js missing for skill: $canonicalId")
+        }
+        val scriptText = try {
+            scriptFile.readText(Charsets.UTF_8)
+        } catch (e: Exception) {
+            return ToolResult(false, "READ_FAILED", e.message ?: "Cannot read script.js")
+        }
+        return SkillQuickJsExecutor.execute(scriptText, input).fold(
+            onSuccess = { data ->
+                ToolResult(
+                    true,
+                    data = buildJsonObject {
+                        put("skillId", canonicalId)
+                        for ((k, v) in data) {
+                            put(k, v)
+                        }
+                    }
+                )
+            },
+            onFailure = { e ->
+                ToolResult(
+                    false,
+                    "SKILL_RUNTIME_ERROR",
+                    e.message ?: e.javaClass.simpleName
+                )
+            }
+        )
     }
 
     private fun viewNodeToJson(node: ViewNode): JsonObject {

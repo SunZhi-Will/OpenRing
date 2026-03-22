@@ -2,8 +2,10 @@ package com.openring.ui.screens
 
 import androidx.annotation.DrawableRes
 import com.openring.R
+import com.openring.localmodel.LocalModelCatalog
 
 enum class ModelProvider(val displayName: String, val apiKeyUrl: String) {
+    LOCAL("On-device", ""),
     GEMINI("Gemini", "https://aistudio.google.com/app/apikey"),
     OPENAI("OpenAI", "https://platform.openai.com/api-keys"),
     ANTHROPIC("Anthropic", "https://console.anthropic.com/settings/keys"),
@@ -22,6 +24,7 @@ data class KnownModel(
 
 @DrawableRes
 fun drawableResForProvider(provider: ModelProvider): Int = when (provider) {
+    ModelProvider.LOCAL -> R.drawable.ic_provider_local
     ModelProvider.GEMINI -> R.drawable.ic_provider_gemini
     ModelProvider.OPENAI -> R.drawable.ic_provider_openai
     ModelProvider.ANTHROPIC -> R.drawable.ic_provider_anthropic
@@ -33,6 +36,7 @@ fun drawableResForProvider(provider: ModelProvider): Int = when (provider) {
 }
 
 fun providerFromString(provider: String): ModelProvider = when (provider.lowercase()) {
+    "local" -> ModelProvider.LOCAL
     "openai" -> ModelProvider.OPENAI
     "anthropic" -> ModelProvider.ANTHROPIC
     "mistral" -> ModelProvider.MISTRAL
@@ -68,3 +72,8 @@ val KNOWN_MODELS = listOf(
     KnownModel(ModelProvider.XAI, "Grok 2", "grok-2-1212"),
     KnownModel(ModelProvider.COHERE, "Command A", "command-a-03-2025")
 )
+
+/** On-device catalog entries as [KnownModel] rows (model id = catalog id). */
+val KNOWN_LOCAL_MODELS: List<KnownModel> = LocalModelCatalog.ENTRIES.map { e ->
+    KnownModel(ModelProvider.LOCAL, e.label, e.id)
+}

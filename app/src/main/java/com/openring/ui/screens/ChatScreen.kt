@@ -33,7 +33,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Description
@@ -43,6 +45,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DropdownMenu
@@ -57,7 +61,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -76,11 +82,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
+import com.openring.agent.ActiveChatContext
 import com.openring.agent.ChatLogEntry
 import com.openring.agent.ExecutionLogStore
 import com.openring.agent.ReActCoordinator
 import com.openring.agent.RunCancellationRegistry
 import com.openring.core.OverlayService
+import com.openring.data.ChatRepository
+import com.openring.data.MemoryRepository
+import com.openring.data.model.ChatSession
+import com.openring.localmodel.LocalModelCatalog
 import com.openring.security.ApiKeyStore
 import com.openring.settings.ModelStore
 import com.openring.ui.notifications.AiRunNotification
@@ -109,12 +120,23 @@ fun ChatScreen(
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     val coordinator = remember { ReActCoordinator(context) }
+    val chatRepository = remember { ChatRepository(context) }
+    val memoryRepository = remember { MemoryRepository(context) }
     val keyStore = remember { ApiKeyStore(context) }
     val modelStore = remember { ModelStore(context) }
     val modelChain = modelStore.getModels()
     val runnableGemini = modelChain.filter {
         it.provider == "gemini" && keyStore.getGeminiApiKeyForModel(it.id).isNullOrBlank().not()
     }
+    val hasGeminiWithKey = modelChain.any {
+        it.provider == "gemini" && keyStore.getGeminiApiKeyForModel(it.id).isNullOrBlank().not()
+    }
+    val localEntries = modelChain.filter { it.provider == "local" }
+    val anyLocalNotDownloaded = localEntries.any {
+        !LocalModelCatalog.isDownloaded(context, it.model)
+    }
+    val allLocalDownloaded =
+        localEntries.isNotEmpty() && localEntries.all { LocalModelCatalog.isDownloaded(context, it.model) }
 
     data class ChatMessage(
         val id: String,
@@ -128,7 +150,43 @@ fun ChatScreen(
     fun formatTime(ts: Long): String = timeFormatter.format(Date(ts))
 
     val messages = remember { mutableStateListOf<ChatMessage>() }
+    var activeChatSessionId by remember { mutableStateOf<String?>(null) }
     var input by remember { mutableStateOf("") }
+    var sessionSheetOpen by remember { mutableStateOf(false) }
+    var sessionsForPicker by remember { mutableStateOf<List<ChatSession>>(emptyList()) }
+    val sessionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            val sid = chatRepository.getOrCreateActiveSessionId()
+            val rows = chatRepository.getMessages(sid)
+            val logs = chatRepository.loadExecutionLog(sid)
+            withContext(Dispatchers.Main) {
+                activeChatSessionId = sid
+                messages.clear()
+                for (m in rows) {
+                    messages.add(
+                        ChatMessage(
+                            id = m.id,
+                            role = m.role,
+                            text = m.body,
+                            createdAtMs = m.createdAtMs
+                        )
+                    )
+                }
+                ExecutionLogStore.replaceAll(logs)
+            }
+        }
+    }
+
+    LaunchedEffect(sessionSheetOpen) {
+        if (sessionSheetOpen) {
+            sessionsForPicker = withContext(Dispatchers.IO) {
+                chatRepository.listSessions(100)
+            }
+        }
+    }
+
     var running by remember { mutableStateOf(false) }
     var runningSessionId by remember { mutableStateOf<String?>(null) }
     var overlayPermissionDialogText by remember { mutableStateOf<String?>(null) }
@@ -201,26 +259,18 @@ fun ChatScreen(
     }
 
     fun startRun(text: String, tryStartOverlay: Boolean) {
-        if (running || text.isBlank() || runnableGemini.isEmpty()) return
-        ExecutionLogStore.clear()
+        val trimmed = text.trim()
+        if (running || trimmed.isBlank() || runnableGemini.isEmpty()) return
         processingText = "正在處理中…"
-        messages.add(
-            ChatMessage(
-                id = UUID.randomUUID().toString(),
-                role = "user",
-                text = text,
-                createdAtMs = nowMs()
-            )
-        )
         running = true
-        val sessionId = UUID.randomUUID().toString()
-        runningSessionId = sessionId
-        RunCancellationRegistry.register(sessionId)
-        AiRunNotification.show(context, sessionId)
+        val runSessionId = UUID.randomUUID().toString()
+        runningSessionId = runSessionId
+        RunCancellationRegistry.register(runSessionId)
+        AiRunNotification.show(context, runSessionId)
         if (tryStartOverlay && Settings.canDrawOverlays(context)) {
             val overlayIntent = Intent(context, OverlayService::class.java).apply {
                 action = OverlayService.ACTION_START_AI_RUN
-                putExtra(OverlayService.EXTRA_SESSION_ID, sessionId)
+                putExtra(OverlayService.EXTRA_SESSION_ID, runSessionId)
             }
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -234,6 +284,26 @@ fun ChatScreen(
         }
         scope.launch {
             try {
+                val chatSid = withContext(Dispatchers.IO) {
+                    chatRepository.getOrCreateActiveSessionId()
+                }
+                activeChatSessionId = chatSid
+                val priorContents = withContext(Dispatchers.IO) {
+                    chatRepository.messagesToGeminiContents(chatRepository.getMessages(chatSid))
+                }
+                val userMsgId = UUID.randomUUID().toString()
+                val userTs = nowMs()
+                withContext(Dispatchers.IO) {
+                    chatRepository.addUserMessage(chatSid, userMsgId, trimmed)
+                }
+                messages.add(
+                    ChatMessage(
+                        id = userMsgId,
+                        role = "user",
+                        text = trimmed,
+                        createdAtMs = userTs
+                    )
+                )
                 val resultText = withContext(Dispatchers.IO) {
                     var lastError: String? = null
                     for (opt in modelChain) {
@@ -244,14 +314,58 @@ fun ChatScreen(
                             continue
                         }
                         try {
-                            updateProcessingText("嘗試模型：GEMINI·${opt.label} (${opt.model})")
+                            withContext(Dispatchers.Main) {
+                                updateProcessingText("嘗試模型：GEMINI·${opt.label} (${opt.model})")
+                            }
+                            ActiveChatContext.sessionId = chatSid
+                            ActiveChatContext.geminiApiKey = key
+                            val injection = try {
+                                memoryRepository.buildContextInjection(key, chatSid, trimmed)
+                            } catch (e: Exception) {
+                                Log.w("OpenRing", "Long-term memory injection failed", e)
+                                ""
+                            }
+                            val userForModel = if (injection.isBlank()) {
+                                trimmed
+                            } else {
+                                "[Long-term memory context — use if relevant]\n$injection\n\n---\nUser message:\n$trimmed"
+                            }
                             val r = coordinator.run(
                                 apiKey = key,
                                 model = opt.model,
-                                userText = text,
-                                shouldCancel = { RunCancellationRegistry.isCancelled(sessionId) },
+                                userText = userForModel,
+                                priorContents = priorContents,
+                                shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
                                 onTurn = { turn ->
                                     scope.launch(Dispatchers.Main) { recordTurnToLog(turn) }
+                                    scope.launch(Dispatchers.IO) {
+                                        val toolName = turn.toolName ?: return@launch
+                                        when (turn.role) {
+                                            "tool_call" -> {
+                                                val args = turn.toolResult ?: buildJsonObject { }
+                                                chatRepository.appendExecutionLog(
+                                                    chatSid,
+                                                    ChatLogEntry.ToolCall(
+                                                        toolName = toolName,
+                                                        args = args,
+                                                        createdAtMs = nowMs()
+                                                    )
+                                                )
+                                            }
+
+                                            "tool_result" -> {
+                                                val resultObj = turn.toolResult ?: buildJsonObject { }
+                                                chatRepository.appendExecutionLog(
+                                                    chatSid,
+                                                    ChatLogEntry.ToolResult(
+                                                        toolName = toolName,
+                                                        result = sanitizeJsonForLog(toolName, resultObj),
+                                                        createdAtMs = nowMs()
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             )
                             return@withContext r.finalText
@@ -268,17 +382,25 @@ fun ChatScreen(
                             lastError =
                                 if (detail != null) "模型失敗：GEMINI·${opt.label}（${e.javaClass.simpleName}: $detail）"
                                 else "模型失敗：GEMINI·${opt.label}（${e.javaClass.simpleName}）"
-                            updateProcessingText(lastError)
+                            withContext(Dispatchers.Main) { updateProcessingText(lastError) }
+                        } finally {
+                            ActiveChatContext.sessionId = null
+                            ActiveChatContext.geminiApiKey = null
                         }
                     }
                     lastError ?: "所有模型都不可用：請到設定新增模型並輸入 API Key。"
                 }
+                val modelMsgId = UUID.randomUUID().toString()
+                val modelTs = nowMs()
+                withContext(Dispatchers.IO) {
+                    chatRepository.addModelMessage(chatSid, modelMsgId, resultText)
+                }
                 messages.add(
                     ChatMessage(
-                        id = UUID.randomUUID().toString(),
+                        id = modelMsgId,
                         role = "model",
                         text = resultText,
-                        createdAtMs = nowMs()
+                        createdAtMs = modelTs
                     )
                 )
             } finally {
@@ -294,7 +416,7 @@ fun ChatScreen(
                         context.stopService(Intent(context, OverlayService::class.java))
                     }
                 }
-                RunCancellationRegistry.clear(sessionId)
+                RunCancellationRegistry.clear(runSessionId)
                 runningSessionId = null
                 running = false
             }
@@ -336,6 +458,36 @@ fun ChatScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = {
+                            if (running) {
+                                Toast.makeText(context, "執行中請稍候", Toast.LENGTH_SHORT).show()
+                            } else {
+                                sessionSheetOpen = true
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.List, contentDescription = "工作階段列表")
+                    }
+                    IconButton(
+                        onClick = {
+                            if (running) {
+                                Toast.makeText(context, "執行中無法開新對話", Toast.LENGTH_SHORT).show()
+                            } else {
+                                scope.launch(Dispatchers.IO) {
+                                    val newId = chatRepository.createSessionAndSelect()
+                                    withContext(Dispatchers.Main) {
+                                        activeChatSessionId = newId
+                                        messages.clear()
+                                        ExecutionLogStore.clear()
+                                        Toast.makeText(context, "已開始新對話", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "新對話")
+                    }
                     IconButton(onClick = onNavigateToWorkflows) {
                         Icon(Icons.Default.Description, contentDescription = "排程 / 工作流")
                     }
@@ -359,10 +511,17 @@ fun ChatScreen(
                 .background(MaterialTheme.colorScheme.background)
         ) {
             // Chat 警告只顯示一個：優先提示「未選模型」，其次提示「未填 Key」
-            val warning =
-                if (modelChain.isEmpty()) "尚未新增任何模型：請到設定新增模型與 API Key（可設定多個作為備援）。"
-                else if (runnableGemini.isEmpty()) "尚未設定可用模型的 API Key：請到設定為至少一個 Gemini 模型輸入 API Key（將依清單順序自動備援）。"
-                else null
+            val warning = when {
+                modelChain.isEmpty() ->
+                    "尚未新增任何模型：請到設定新增雲端模型（API Key）或地端模型（可設定多個作為備援）。"
+                !hasGeminiWithKey && anyLocalNotDownloaded ->
+                    "有地端模型尚未下載：請到設定在該模型旁點擊下載圖示，完成後再試。"
+                !hasGeminiWithKey && localEntries.isNotEmpty() && allLocalDownloaded ->
+                    "地端模型已下載；聊天推論將於後續版本啟用。請暫時在設定新增 Gemini 並填入 API Key 以使用聊天。"
+                !hasGeminiWithKey ->
+                    "尚未設定可用模型的 API Key：請到設定為至少一個 Gemini 模型輸入 API Key（將依清單順序自動備援）。"
+                else -> null
+            }
             if (warning != null) {
                 val (container, content) =
                     MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
@@ -617,6 +776,66 @@ fun ChatScreen(
                 ) { Text("先繼續") }
             }
         )
+    }
+
+    if (sessionSheetOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { sessionSheetOpen = false },
+            sheetState = sessionSheetState
+        ) {
+            Text(
+                text = "工作階段",
+                modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp)
+            ) {
+                items(sessionsForPicker, key = { it.id }) { s ->
+                    ListItem(
+                        headlineContent = {
+                            Text(
+                                s.title.ifBlank { "未命名對話" },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        supportingContent = { Text(formatTime(s.updatedAtMs)) },
+                        modifier = Modifier.clickable {
+                            if (running) {
+                                Toast.makeText(context, "執行中請稍候", Toast.LENGTH_SHORT).show()
+                            } else {
+                                scope.launch(Dispatchers.IO) {
+                                    chatRepository.activateSession(s.id)
+                                    val rows = chatRepository.getMessages(s.id)
+                                    val logs = chatRepository.loadExecutionLog(s.id)
+                                    withContext(Dispatchers.Main) {
+                                        activeChatSessionId = s.id
+                                        messages.clear()
+                                        for (m in rows) {
+                                            messages.add(
+                                                ChatMessage(
+                                                    id = m.id,
+                                                    role = m.role,
+                                                    text = m.body,
+                                                    createdAtMs = m.createdAtMs
+                                                )
+                                            )
+                                        }
+                                        ExecutionLogStore.replaceAll(logs)
+                                        sessionSheetOpen = false
+                                    }
+                                }
+                            }
+                        }
+                    )
+                    HorizontalDivider()
+                }
+            }
+        }
     }
 }
 

@@ -1,13 +1,20 @@
 package com.openring.gemini
 
 import android.util.Log
+import com.openring.gemini.model.Content
+import com.openring.gemini.model.EmbedContentRequest
+import com.openring.gemini.model.EmbedContentResponse
 import com.openring.gemini.model.GenerateContentRequest
 import com.openring.gemini.model.GenerateContentResponse
 import com.openring.gemini.model.Part
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -87,6 +94,59 @@ class GeminiRestClient(
                 val preview = respBody.replace("\n", " ").take(1200)
                 Log.e(TAG, "Gemini parse failed model=$model body=$preview", e)
                 throw e
+            }
+        }
+    }
+
+    /**
+     * Text embedding for vector memory / similarity (Gemini Developer API).
+     * @param modelId e.g. `gemini-embedding-001`
+     */
+    fun embedContent(
+        apiKey: String,
+        text: String,
+        modelId: String = "gemini-embedding-001",
+        taskType: String? = null,
+    ): FloatArray {
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/$modelId:embedContent"
+        val request = EmbedContentRequest(
+            model = "models/$modelId",
+            content = Content(
+                role = "user",
+                parts = listOf(Part(text = text))
+            ),
+            taskType = taskType
+        )
+        val body = json.encodeToString(EmbedContentRequest.serializer(), request)
+            .toRequestBody("application/json".toMediaType())
+        val httpRequest = Request.Builder()
+            .url(url)
+            .header("x-goog-api-key", apiKey)
+            .header("Content-Type", "application/json")
+            .post(body)
+            .build()
+        httpClient.newCall(httpRequest).execute().use { resp ->
+            val respBody = resp.body?.string()
+            if (!resp.isSuccessful || respBody == null) {
+                throw IllegalStateException("Gemini embed HTTP ${resp.code}: ${respBody ?: "empty"}")
+            }
+            return parseEmbeddingValues(respBody)
+        }
+    }
+
+    private fun parseEmbeddingValues(respBody: String): FloatArray {
+        return try {
+            val parsed = json.decodeFromString(EmbedContentResponse.serializer(), respBody)
+            val values = parsed.embedding?.values ?: emptyList()
+            FloatArray(values.size) { i -> values[i].toFloat() }
+        } catch (_: Exception) {
+            val root = json.parseToJsonElement(respBody).jsonObject
+            val emb = root["embedding"]?.jsonObject
+            val arr = emb?.get("values")?.jsonArray
+                ?: throw IllegalStateException("embedContent: missing embedding.values")
+            FloatArray(arr.size) { i ->
+                arr[i].jsonPrimitive.content.toFloatOrNull()
+                    ?: throw IllegalStateException("embedContent: invalid float at $i")
             }
         }
     }
