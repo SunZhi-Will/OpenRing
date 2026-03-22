@@ -28,6 +28,7 @@ object AiRunNotification {
             context,
             100,
             Intent(context, MainActivity::class.java).apply {
+                setPackage(context.packageName)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -37,6 +38,7 @@ object AiRunNotification {
             context,
             101,
             Intent(context, AiRunControlReceiver::class.java).apply {
+                setPackage(context.packageName)
                 action = ACTION_STOP_AI_RUN
                 putExtra(EXTRA_SESSION_ID, sessionId)
             },

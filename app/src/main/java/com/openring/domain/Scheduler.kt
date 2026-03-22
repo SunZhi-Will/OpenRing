@@ -188,6 +188,7 @@ class Scheduler(private val context: Context) {
 
     private fun alarmPendingIntent(scriptId: String): PendingIntent {
         val intent = Intent(context, ScriptAlarmReceiver::class.java).apply {
+            setPackage(context.packageName)
             putExtra(ScriptAlarmReceiver.EXTRA_SCRIPT_ID, scriptId)
         }
         return PendingIntent.getBroadcast(
