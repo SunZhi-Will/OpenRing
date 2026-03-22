@@ -3,7 +3,6 @@ package com.openring.domain
 import android.content.Context
 import android.app.AlarmManager
 import android.app.PendingIntent
-import android.content.ComponentName
 import android.content.Intent
 import android.os.Build
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -188,8 +187,7 @@ class Scheduler(private val context: Context) {
     }
 
     private fun alarmPendingIntent(scriptId: String): PendingIntent {
-        val intent = Intent().apply {
-            component = ComponentName(context, ScriptAlarmReceiver::class.java)
+        val intent = Intent(context, ScriptAlarmReceiver::class.java).apply {
             setPackage(context.packageName)
             putExtra(ScriptAlarmReceiver.EXTRA_SCRIPT_ID, scriptId)
         }

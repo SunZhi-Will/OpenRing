@@ -4,7 +4,6 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -27,8 +26,7 @@ object AiRunNotification {
         val openIntent = PendingIntent.getActivity(
             context,
             100,
-            Intent().apply {
-                component = ComponentName(context, MainActivity::class.java)
+            Intent(context, MainActivity::class.java).apply {
                 setPackage(context.packageName)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             },
@@ -38,8 +36,7 @@ object AiRunNotification {
         val stopIntent = PendingIntent.getBroadcast(
             context,
             101,
-            Intent().apply {
-                component = ComponentName(context, AiRunControlReceiver::class.java)
+            Intent(context, AiRunControlReceiver::class.java).apply {
                 setPackage(context.packageName)
                 putExtra(EXTRA_SESSION_ID, sessionId)
             },
