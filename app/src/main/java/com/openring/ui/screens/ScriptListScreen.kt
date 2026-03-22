@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PostAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -64,6 +65,7 @@ import com.openring.data.ScriptStore
 import com.openring.domain.Scheduler
 import com.openring.domain.ScriptExecutor
 import com.openring.core.OverlayService
+import com.openring.workflow.WorkflowTemplates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -81,6 +83,8 @@ fun ScriptListScreen(
     val scriptStore = ScriptStore(db.scriptDao())
     val scheduler = remember { Scheduler(context) }
     val scripts by scriptStore.allScripts.collectAsState(initial = emptyList())
+    val templateEntries = remember { WorkflowTemplates.listEntries(context) }
+    var showTemplateDialog by remember { mutableStateOf(false) }
     var isAccessibilityEnabled by remember { mutableStateOf(OpenRingAccessibilityService.isEnabled()) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -103,6 +107,12 @@ fun ScriptListScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = { showTemplateDialog = true },
+                        enabled = templateEntries.isNotEmpty()
+                    ) {
+                        Icon(Icons.Default.PostAdd, contentDescription = "從範本建立")
+                    }
                     IconButton(onClick = onNavigateToHistory) {
                         Icon(Icons.Default.History, contentDescription = "執行歷史")
                     }
@@ -244,6 +254,47 @@ fun ScriptListScreen(
             }
             }
         }
+    }
+
+    if (showTemplateDialog) {
+        AlertDialog(
+            onDismissRequest = { showTemplateDialog = false },
+            title = { Text("從範本建立") },
+            text = {
+                Column {
+                    if (templateEntries.isEmpty()) {
+                        Text("尚無內建範本。")
+                    } else {
+                        templateEntries.forEach { entry ->
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        val t = withContext(Dispatchers.IO) {
+                                            WorkflowTemplates.loadTemplate(context, entry.file)
+                                        }
+                                        if (t == null) return@launch
+                                        val script = withContext(Dispatchers.IO) {
+                                            scriptStore.insertScript(t.name, t.steps, t.schedule)
+                                        }
+                                        withContext(Dispatchers.Main) {
+                                            showTemplateDialog = false
+                                            onNavigateToEditor(script.id)
+                                        }
+                                    }
+                                }
+                            ) {
+                                Text(entry.title)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showTemplateDialog = false }) {
+                    Text("關閉")
+                }
+            }
+        )
     }
 }
 

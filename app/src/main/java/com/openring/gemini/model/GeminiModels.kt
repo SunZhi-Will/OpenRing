@@ -32,6 +32,13 @@ data class Content(
 )
 
 @Serializable
+data class InlineData(
+    @SerialName("mimeType")
+    val mimeType: String,
+    val data: String
+)
+
+@Serializable
 data class Part(
     val text: String? = null,
     @SerialName("functionCall")
@@ -39,7 +46,9 @@ data class Part(
     @SerialName("functionResponse")
     val functionResponse: FunctionResponse? = null,
     @SerialName("thoughtSignature")
-    val thoughtSignature: String? = null
+    val thoughtSignature: String? = null,
+    @SerialName("inlineData")
+    val inlineData: InlineData? = null
 )
 
 @Serializable

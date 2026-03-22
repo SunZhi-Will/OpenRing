@@ -915,7 +915,7 @@ private fun ModelUpsertDialog(
                     ) { Text("取得 API Key") }
                 } else {
                     Text(
-                        "地端模型需下載檔案後才能使用；新增後可在清單中點擊雲端下載圖示開始下載。",
+                        "地端模型需下載 GGUF 後才能聊天；清單由上而下依序嘗試，可拖曳調整優先權。本機路徑僅純文字對話（無 ReAct／工具／雲端視覺），Gemini 仍可用於自動化。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

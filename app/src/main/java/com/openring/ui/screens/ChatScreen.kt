@@ -91,7 +91,10 @@ import com.openring.core.OverlayService
 import com.openring.data.ChatRepository
 import com.openring.data.MemoryRepository
 import com.openring.data.model.ChatSession
+import com.openring.localmodel.LocalLlmChatPrompt
+import com.openring.localmodel.LocalLlmEngine
 import com.openring.localmodel.LocalModelCatalog
+import com.openring.settings.AiPromptStore
 import com.openring.security.ApiKeyStore
 import com.openring.settings.ModelStore
 import com.openring.ui.notifications.AiRunNotification
@@ -105,6 +108,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.util.Date
 import java.util.UUID
 
@@ -128,15 +132,18 @@ fun ChatScreen(
     val runnableGemini = modelChain.filter {
         it.provider == "gemini" && keyStore.getGeminiApiKeyForModel(it.id).isNullOrBlank().not()
     }
+    val runnableLocal = modelChain.filter {
+        it.provider.equals("local", ignoreCase = true) &&
+            LocalModelCatalog.isDownloaded(context, it.model)
+    }
+    val canRunChat = runnableGemini.isNotEmpty() || runnableLocal.isNotEmpty()
     val hasGeminiWithKey = modelChain.any {
         it.provider == "gemini" && keyStore.getGeminiApiKeyForModel(it.id).isNullOrBlank().not()
     }
-    val localEntries = modelChain.filter { it.provider == "local" }
+    val localEntries = modelChain.filter { it.provider.equals("local", ignoreCase = true) }
     val anyLocalNotDownloaded = localEntries.any {
         !LocalModelCatalog.isDownloaded(context, it.model)
     }
-    val allLocalDownloaded =
-        localEntries.isNotEmpty() && localEntries.all { LocalModelCatalog.isDownloaded(context, it.model) }
 
     data class ChatMessage(
         val id: String,
@@ -193,6 +200,25 @@ fun ChatScreen(
     var processingText by remember { mutableStateOf("正在處理中…") }
 
     fun sanitizeJsonForLog(toolName: String, json: JsonObject): JsonObject {
+        if (toolName == "describe_screen") {
+            val data = json["data"] as? JsonObject ?: return json
+            val desc = data["description"]?.jsonPrimitive?.content ?: return json
+            if (desc.length <= 2000) return json
+            val sanitizedData = buildJsonObject {
+                for ((k, v) in data) {
+                    if (k == "description") {
+                        put(k, JsonPrimitive("${desc.take(2000)}… [truncated]"))
+                    } else {
+                        put(k, v)
+                    }
+                }
+            }
+            return buildJsonObject {
+                for ((k, v) in json) {
+                    if (k == "data") put(k, sanitizedData) else put(k, v)
+                }
+            }
+        }
         // `get_view_tree` / `get_cached_scan` 可能回傳超大的 UI 樹，log 全量保存會非常難用也可能導致記憶體壓力。
         if (toolName == "get_view_tree" || toolName == "get_cached_scan") {
             val data = json["data"] as? JsonObject ?: return json
@@ -260,7 +286,7 @@ fun ChatScreen(
 
     fun startRun(text: String, tryStartOverlay: Boolean) {
         val trimmed = text.trim()
-        if (running || trimmed.isBlank() || runnableGemini.isEmpty()) return
+        if (running || trimmed.isBlank() || !canRunChat) return
         processingText = "正在處理中…"
         running = true
         val runSessionId = UUID.randomUUID().toString()
@@ -304,105 +330,214 @@ fun ChatScreen(
                         createdAtMs = userTs
                     )
                 )
+                var streamedLocalModelMessageId: String? = null
                 val resultText = withContext(Dispatchers.IO) {
                     var lastError: String? = null
+                    val aiPromptStore = AiPromptStore(context)
                     for (opt in modelChain) {
-                        val key = keyStore.getGeminiApiKeyForModel(opt.id).orEmpty()
-                        if (key.isBlank()) continue
-                        if (opt.provider != "gemini") {
-                            lastError = "略過 ${opt.provider.uppercase()}·${opt.label}（尚未接入此供應商）"
-                            continue
-                        }
-                        try {
-                            withContext(Dispatchers.Main) {
-                                updateProcessingText("嘗試模型：GEMINI·${opt.label} (${opt.model})")
-                            }
-                            ActiveChatContext.sessionId = chatSid
-                            ActiveChatContext.geminiApiKey = key
-                            val injection = try {
-                                memoryRepository.buildContextInjection(key, chatSid, trimmed)
-                            } catch (e: Exception) {
-                                Log.w("OpenRing", "Long-term memory injection failed", e)
-                                ""
-                            }
-                            val userForModel = if (injection.isBlank()) {
-                                trimmed
-                            } else {
-                                "[Long-term memory context — use if relevant]\n$injection\n\n---\nUser message:\n$trimmed"
-                            }
-                            val r = coordinator.run(
-                                apiKey = key,
-                                model = opt.model,
-                                userText = userForModel,
-                                priorContents = priorContents,
-                                shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
-                                onTurn = { turn ->
-                                    scope.launch(Dispatchers.Main) { recordTurnToLog(turn) }
-                                    scope.launch(Dispatchers.IO) {
-                                        val toolName = turn.toolName ?: return@launch
-                                        when (turn.role) {
-                                            "tool_call" -> {
-                                                val args = turn.toolResult ?: buildJsonObject { }
-                                                chatRepository.appendExecutionLog(
-                                                    chatSid,
-                                                    ChatLogEntry.ToolCall(
-                                                        toolName = toolName,
-                                                        args = args,
-                                                        createdAtMs = nowMs()
-                                                    )
-                                                )
-                                            }
+                        when (opt.provider.lowercase()) {
+                            "gemini" -> {
+                                val key = keyStore.getGeminiApiKeyForModel(opt.id).orEmpty()
+                                if (key.isBlank()) continue
+                                try {
+                                    withContext(Dispatchers.Main) {
+                                        updateProcessingText("嘗試模型：GEMINI·${opt.label} (${opt.model})")
+                                    }
+                                    ActiveChatContext.sessionId = chatSid
+                                    ActiveChatContext.geminiApiKey = key
+                                    ActiveChatContext.geminiModel = opt.model
+                                    val injection = try {
+                                        memoryRepository.buildContextInjection(key, chatSid, trimmed)
+                                    } catch (e: Exception) {
+                                        Log.w("OpenRing", "Long-term memory injection failed", e)
+                                        ""
+                                    }
+                                    val userForModel = if (injection.isBlank()) {
+                                        trimmed
+                                    } else {
+                                        "[Long-term memory context — use if relevant]\n$injection\n\n---\nUser message:\n$trimmed"
+                                    }
+                                    val r = coordinator.run(
+                                        apiKey = key,
+                                        model = opt.model,
+                                        userText = userForModel,
+                                        priorContents = priorContents,
+                                        shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
+                                        onTurn = { turn ->
+                                            scope.launch(Dispatchers.Main) { recordTurnToLog(turn) }
+                                            scope.launch(Dispatchers.IO) {
+                                                val toolName = turn.toolName ?: return@launch
+                                                when (turn.role) {
+                                                    "tool_call" -> {
+                                                        val args = turn.toolResult ?: buildJsonObject { }
+                                                        chatRepository.appendExecutionLog(
+                                                            chatSid,
+                                                            ChatLogEntry.ToolCall(
+                                                                toolName = toolName,
+                                                                args = args,
+                                                                createdAtMs = nowMs()
+                                                            )
+                                                        )
+                                                    }
 
-                                            "tool_result" -> {
-                                                val resultObj = turn.toolResult ?: buildJsonObject { }
-                                                chatRepository.appendExecutionLog(
-                                                    chatSid,
-                                                    ChatLogEntry.ToolResult(
-                                                        toolName = toolName,
-                                                        result = sanitizeJsonForLog(toolName, resultObj),
-                                                        createdAtMs = nowMs()
-                                                    )
-                                                )
+                                                    "tool_result" -> {
+                                                        val resultObj = turn.toolResult ?: buildJsonObject { }
+                                                        chatRepository.appendExecutionLog(
+                                                            chatSid,
+                                                            ChatLogEntry.ToolResult(
+                                                                toolName = toolName,
+                                                                result = sanitizeJsonForLog(toolName, resultObj),
+                                                                createdAtMs = nowMs()
+                                                            )
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
-                                    }
+                                    )
+                                    return@withContext r.finalText
+                                } catch (e: Exception) {
+                                    Log.e(
+                                        "OpenRing",
+                                        "Model run failed provider=gemini label=${opt.label} model=${opt.model}",
+                                        e
+                                    )
+                                    val detail = e.message
+                                        ?.replace("\n", " ")
+                                        ?.take(220)
+                                        ?.takeIf { it.isNotBlank() }
+                                    lastError =
+                                        if (detail != null) "模型失敗：GEMINI·${opt.label}（${e.javaClass.simpleName}: $detail）"
+                                        else "模型失敗：GEMINI·${opt.label}（${e.javaClass.simpleName}）"
+                                    withContext(Dispatchers.Main) { updateProcessingText(lastError) }
+                                } finally {
+                                    ActiveChatContext.sessionId = null
+                                    ActiveChatContext.geminiApiKey = null
+                                    ActiveChatContext.geminiModel = null
                                 }
-                            )
-                            return@withContext r.finalText
-                        } catch (e: Exception) {
-                            Log.e(
-                                "OpenRing",
-                                "Model run failed provider=gemini label=${opt.label} model=${opt.model}",
-                                e
-                            )
-                            val detail = e.message
-                                ?.replace("\n", " ")
-                                ?.take(220)
-                                ?.takeIf { it.isNotBlank() }
-                            lastError =
-                                if (detail != null) "模型失敗：GEMINI·${opt.label}（${e.javaClass.simpleName}: $detail）"
-                                else "模型失敗：GEMINI·${opt.label}（${e.javaClass.simpleName}）"
-                            withContext(Dispatchers.Main) { updateProcessingText(lastError) }
-                        } finally {
-                            ActiveChatContext.sessionId = null
-                            ActiveChatContext.geminiApiKey = null
+                            }
+
+                            "local" -> {
+                                if (!LocalModelCatalog.isDownloaded(context, opt.model)) {
+                                    lastError = "略過 地端·${opt.label}（GGUF 尚未下載）"
+                                    continue
+                                }
+                                val placeholderId = UUID.randomUUID().toString()
+                                try {
+                                    withContext(Dispatchers.Main) {
+                                        updateProcessingText("本機模型：${opt.label} (${opt.model})")
+                                        messages.add(
+                                            ChatMessage(
+                                                id = placeholderId,
+                                                role = "model",
+                                                text = "…",
+                                                createdAtMs = nowMs()
+                                            )
+                                        )
+                                        streamedLocalModelMessageId = placeholderId
+                                    }
+                                    ActiveChatContext.sessionId = chatSid
+                                    ActiveChatContext.geminiApiKey = null
+                                    ActiveChatContext.geminiModel = null
+                                    val memInject = try {
+                                        memoryRepository.buildLocalTextOnlyInjection(chatSid)
+                                    } catch (e: Exception) {
+                                        Log.w("OpenRing", "Local memory injection failed", e)
+                                        ""
+                                    }
+                                    val style = LocalLlmChatPrompt.styleForCatalogId(opt.model)
+                                    val prompt = LocalLlmChatPrompt.buildPrompt(
+                                        style = style,
+                                        systemPrompt = aiPromptStore.getSystemPrompt(),
+                                        memoryInjection = memInject,
+                                        priorContents = priorContents,
+                                        currentUserMessage = trimmed
+                                    )
+                                    val out = LocalLlmEngine.generateStreaming(
+                                        context = context,
+                                        catalogId = opt.model,
+                                        prompt = prompt,
+                                        isCancelled = { RunCancellationRegistry.isCancelled(runSessionId) },
+                                        onAccumulatedText = { acc ->
+                                            scope.launch(Dispatchers.Main) {
+                                                val idx = messages.indexOfFirst { it.id == placeholderId }
+                                                if (idx >= 0) {
+                                                    val old = messages[idx]
+                                                    messages[idx] = old.copy(text = acc)
+                                                }
+                                            }
+                                        }
+                                    )
+                                    val finalOut = out.trim().ifBlank { "（本機模型未產生內容）" }
+                                    withContext(Dispatchers.Main) {
+                                        val idx = messages.indexOfFirst { it.id == placeholderId }
+                                        if (idx >= 0) {
+                                            val old = messages[idx]
+                                            messages[idx] = old.copy(text = finalOut)
+                                        }
+                                    }
+                                    return@withContext finalOut
+                                } catch (e: Exception) {
+                                    Log.e(
+                                        "OpenRing",
+                                        "Local model failed label=${opt.label} catalog=${opt.model}",
+                                        e
+                                    )
+                                    withContext(Dispatchers.Main) {
+                                        messages.removeAll { it.id == placeholderId }
+                                        streamedLocalModelMessageId = null
+                                    }
+                                    val detail = e.message
+                                        ?.replace("\n", " ")
+                                        ?.take(220)
+                                        ?.takeIf { it.isNotBlank() }
+                                    lastError =
+                                        if (detail != null) "地端失敗：${opt.label}（${e.javaClass.simpleName}: $detail）"
+                                        else "地端失敗：${opt.label}（${e.javaClass.simpleName}）"
+                                    withContext(Dispatchers.Main) { updateProcessingText(lastError) }
+                                } finally {
+                                    ActiveChatContext.sessionId = null
+                                    ActiveChatContext.geminiApiKey = null
+                                    ActiveChatContext.geminiModel = null
+                                }
+                            }
+
+                            else -> {
+                                lastError = "略過 ${opt.provider.uppercase()}·${opt.label}（尚未接入此供應商）"
+                            }
                         }
                     }
-                    lastError ?: "所有模型都不可用：請到設定新增模型並輸入 API Key。"
+                    lastError
+                        ?: "所有模型都不可用：請到設定新增 Gemini（含 API Key）或地端模型（並完成下載），並確認清單順序。"
                 }
-                val modelMsgId = UUID.randomUUID().toString()
-                val modelTs = nowMs()
-                withContext(Dispatchers.IO) {
-                    chatRepository.addModelMessage(chatSid, modelMsgId, resultText)
-                }
-                messages.add(
-                    ChatMessage(
-                        id = modelMsgId,
-                        role = "model",
-                        text = resultText,
-                        createdAtMs = modelTs
+                if (streamedLocalModelMessageId != null) {
+                    withContext(Dispatchers.IO) {
+                        chatRepository.addModelMessage(
+                            chatSid,
+                            streamedLocalModelMessageId!!,
+                            resultText
+                        )
+                    }
+                    val idx = messages.indexOfFirst { it.id == streamedLocalModelMessageId }
+                    if (idx >= 0) {
+                        val old = messages[idx]
+                        messages[idx] = old.copy(text = resultText)
+                    }
+                } else {
+                    val modelMsgId = UUID.randomUUID().toString()
+                    val modelTs = nowMs()
+                    withContext(Dispatchers.IO) {
+                        chatRepository.addModelMessage(chatSid, modelMsgId, resultText)
+                    }
+                    messages.add(
+                        ChatMessage(
+                            id = modelMsgId,
+                            role = "model",
+                            text = resultText,
+                            createdAtMs = modelTs
+                        )
                     )
-                )
+                }
             } finally {
                 AiRunNotification.cancel(context)
                 if (Settings.canDrawOverlays(context)) {
@@ -516,10 +651,12 @@ fun ChatScreen(
                     "尚未新增任何模型：請到設定新增雲端模型（API Key）或地端模型（可設定多個作為備援）。"
                 !hasGeminiWithKey && anyLocalNotDownloaded ->
                     "有地端模型尚未下載：請到設定在該模型旁點擊下載圖示，完成後再試。"
-                !hasGeminiWithKey && localEntries.isNotEmpty() && allLocalDownloaded ->
-                    "地端模型已下載；聊天推論將於後續版本啟用。請暫時在設定新增 Gemini 並填入 API Key 以使用聊天。"
+                !canRunChat ->
+                    "目前無法開始聊天：請（1）為至少一個 Gemini 填入 API Key，或（2）新增地端模型並完成 GGUF 下載。"
+                !hasGeminiWithKey && runnableLocal.isNotEmpty() ->
+                    "目前僅使用本機文字模型：可對話，但不支援 ReAct／工具與雲端視覺。需要時請在設定加入 Gemini 並拖曳調整優先順序。"
                 !hasGeminiWithKey ->
-                    "尚未設定可用模型的 API Key：請到設定為至少一個 Gemini 模型輸入 API Key（將依清單順序自動備援）。"
+                    "尚未設定 Gemini API Key：若清單僅有地端模型請完成下載；若需雲端備援請新增 Gemini 並輸入 Key。"
                 else -> null
             }
             if (warning != null) {

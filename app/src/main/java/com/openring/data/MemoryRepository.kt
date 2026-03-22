@@ -60,6 +60,33 @@ class MemoryRepository(
         return sb.toString().trim()
     }
 
+    /**
+     * 本機純文字模型用：注入工作階段摘要與事實，**不含**向量召回（不需 Gemini API Key）。
+     */
+    suspend fun buildLocalTextOnlyInjection(sessionId: String): String {
+        val sb = StringBuilder()
+        val session = db().chatSessionDao().getById(sessionId)
+        val summary = session?.summary?.trim().orEmpty()
+        if (summary.isNotEmpty()) {
+            sb.appendLine("Session summary:")
+            sb.appendLine(summary.take(1200))
+            sb.appendLine()
+        }
+        val globalFacts = db().memoryFactDao().listForScope("global", "", 14)
+        val scopedFacts = db().memoryFactDao().listForScope("session", sessionId, 14)
+        if (globalFacts.isNotEmpty()) {
+            sb.appendLine("Global facts:")
+            globalFacts.forEach { sb.appendLine("- ${it.factKey}: ${it.factValue.take(380)}") }
+            sb.appendLine()
+        }
+        if (scopedFacts.isNotEmpty()) {
+            sb.appendLine("Session facts:")
+            scopedFacts.forEach { sb.appendLine("- ${it.factKey}: ${it.factValue.take(380)}") }
+            sb.appendLine()
+        }
+        return sb.toString().trim()
+    }
+
     suspend fun saveFact(scope: String, sessionId: String, factKey: String, factValue: String): String {
         val dao = db().memoryFactDao()
         val key = factKey.trim()

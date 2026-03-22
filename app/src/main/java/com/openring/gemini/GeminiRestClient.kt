@@ -6,6 +6,7 @@ import com.openring.gemini.model.EmbedContentRequest
 import com.openring.gemini.model.EmbedContentResponse
 import com.openring.gemini.model.GenerateContentRequest
 import com.openring.gemini.model.GenerateContentResponse
+import com.openring.gemini.model.InlineData
 import com.openring.gemini.model.Part
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -96,6 +97,31 @@ class GeminiRestClient(
                 throw e
             }
         }
+    }
+
+    /**
+     * Single-turn vision: JPEG (Base64) + prompt → model text (e.g. screen understanding when A11y tree is insufficient).
+     */
+    fun describeScreenWithVision(
+        apiKey: String,
+        model: String,
+        imageJpegBase64: String,
+        prompt: String,
+    ): String {
+        val request = GenerateContentRequest(
+            contents = listOf(
+                Content(
+                    role = "user",
+                    parts = listOf(
+                        Part(text = prompt),
+                        Part(inlineData = InlineData(mimeType = "image/jpeg", data = imageJpegBase64))
+                    )
+                )
+            )
+        )
+        val resp = generateContent(apiKey, model, request)
+        return resp.firstText()?.trim()
+            ?: throw IllegalStateException("Vision response had no text")
     }
 
     /**
@@ -192,6 +218,10 @@ class GeminiRestClient(
 
     private fun previewPart(part: Part): String {
         return when {
+            part.inlineData != null -> {
+                val id = part.inlineData!!
+                "inlineData(mime=${id.mimeType}, base64Chars=${id.data.length})"
+            }
             part.text != null -> "text=\"${previewText(part.text!!, PART_TEXT_PREVIEW_LIMIT)}\""
             part.functionCall != null -> {
                 val fc = part.functionCall!!

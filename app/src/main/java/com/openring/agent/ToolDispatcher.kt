@@ -1,6 +1,7 @@
 package com.openring.agent
 
 import android.content.Context
+import com.openring.gemini.GeminiRestClient
 import com.openring.core.InstalledAppsProvider
 import com.openring.core.IntentRouter
 import com.openring.core.OpenRingAccessibilityService
@@ -36,6 +37,8 @@ class ToolDispatcher(
     private val context: Context,
     private val json: Json = Json { ignoreUnknownKeys = true }
 ) {
+    private val geminiRest = GeminiRestClient()
+
     companion object {
         private const val DISCORD_PACKAGE = "com.discord"
     }
@@ -118,6 +121,56 @@ class ToolDispatcher(
                     ToolResult(false, "NO_CACHED_SCAN", "No cached scan available. Enable auto-scan or call get_view_tree first.")
                 } else {
                     ToolResult(true, data = cached.second)
+                }
+            }
+
+            "summarize_view_tree" -> {
+                val tree = service.getViewTree()
+                    ?: return ToolResult(false, ErrorCode.ACTION_FAILED.name, "Cannot get view tree")
+                val fullData = buildJsonObject {
+                    put("timestampMs", System.currentTimeMillis())
+                    put("root", viewNodeToJson(tree))
+                }
+                ScanCache(context).setLastScan(fullData)
+                val compact = UiTreeCompact.compactViewTreeData(fullData)
+                    ?: return ToolResult(false, "COMPACT_FAILED", "Could not build UI summary")
+                val data = buildJsonObject {
+                    put("format", "compact_ui_summary")
+                    compact.forEach { (k, v) -> put(k, v) }
+                }
+                ToolResult(true, data = data)
+            }
+
+            "describe_screen" -> {
+                val apiKey = ActiveChatContext.geminiApiKey
+                if (apiKey.isNullOrBlank()) {
+                    return ToolResult(
+                        false,
+                        "NO_API_KEY",
+                        "Gemini API key required for describe_screen. Configure a Gemini model with a key in Settings."
+                    )
+                }
+                val model = ActiveChatContext.geminiModel?.trim().orEmpty().ifBlank { "gemini-2.0-flash" }
+                val question = args["question"]?.jsonPrimitive?.content?.trim().orEmpty().ifBlank {
+                    "You are helping an Android UI automation agent. Describe the visible screen briefly: list major interactive controls (buttons, fields) and any readable text that helps choose tap targets. Be concise."
+                }
+                val jpeg = com.openring.core.ScreenCapture.captureJpegBase64(service)
+                    ?: return ToolResult(
+                        false,
+                        "SCREENSHOT_UNAVAILABLE",
+                        "Screen capture requires Android 11+ (API 30) and AccessibilityService. Otherwise rely on get_view_tree."
+                    )
+                return try {
+                    val text = geminiRest.describeScreenWithVision(apiKey, model, jpeg, question)
+                    ToolResult(
+                        true,
+                        data = buildJsonObject {
+                            put("description", text.take(12000))
+                            put("visionModel", model)
+                        }
+                    )
+                } catch (e: Exception) {
+                    ToolResult(false, "VISION_FAILED", e.message?.take(500) ?: "Vision call failed")
                 }
             }
 

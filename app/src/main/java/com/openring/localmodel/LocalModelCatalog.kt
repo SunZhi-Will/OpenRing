@@ -26,6 +26,27 @@ object LocalModelCatalog {
             downloadUrl = "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
             sizeBytesApprox = 669_000_000L,
         ),
+        LocalModelCatalogEntry(
+            id = "qwen2.5-1.5b-instruct-q4km",
+            label = "Qwen2.5 1.5B Instruct (Q4_K_M)",
+            fileName = "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+            downloadUrl = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf",
+            sizeBytesApprox = 1_050_000_000L,
+        ),
+        LocalModelCatalogEntry(
+            id = "phi-3.5-mini-instruct-q4km",
+            label = "Phi-3.5 Mini Instruct (Q4_K_M)",
+            fileName = "Phi-3.5-mini-instruct-Q4_K_M.gguf",
+            downloadUrl = "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf",
+            sizeBytesApprox = 2_200_000_000L,
+        ),
+        LocalModelCatalogEntry(
+            id = "gemma-2-2b-it-q4km",
+            label = "Gemma 2 2B IT (Q4_K_M)",
+            fileName = "gemma-2-2b-it-Q4_K_M.gguf",
+            downloadUrl = "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf",
+            sizeBytesApprox = 1_650_000_000L,
+        ),
     )
 
     fun byId(id: String): LocalModelCatalogEntry? = ENTRIES.firstOrNull { it.id == id }

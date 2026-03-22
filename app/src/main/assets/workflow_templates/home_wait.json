@@ -1,0 +1,23 @@
+{
+  "name": "範本：主畫面並稍候",
+  "steps": [
+    {
+      "type": "home",
+      "params": {}
+    },
+    {
+      "type": "wait",
+      "params": {
+        "ms": "1200"
+      }
+    }
+  ],
+  "schedule": {
+    "enabled": false,
+    "type": "disabled",
+    "mode": "battery",
+    "hour": 9,
+    "minute": 0,
+    "minutes": 30
+  }
+}

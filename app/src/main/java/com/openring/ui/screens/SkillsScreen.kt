@@ -126,6 +126,28 @@ fun SkillsScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(Spacing.sm)) {
+                        Text(
+                            "信任與邊界",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            "與封閉市集／雲端代管不同：OpenRing 不代為審核第三方 Skill。白名單與本機 QuickJS 執行讓你自行承擔風險與控制權；僅啟用你信任的來源。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.92f)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(Spacing.sm))
+            }
+            item {
                 Text(
                     "允許從 URL 安裝來源（白名單）",
                     style = MaterialTheme.typography.titleSmall,

@@ -25,6 +25,8 @@ object ToolSchemas {
             getInstalledApps(),
             getViewTree(),
             getCachedScan(),
+            summarizeViewTree(),
+            describeScreen(),
             launchApp(),
             findAndClick(),
             clickNode(),
@@ -121,6 +123,32 @@ object ToolSchemas {
         parameters = buildJsonObject {
             put("type", JsonPrimitive("object"))
             putJsonObject("properties") {}
+        }
+    )
+
+    private fun summarizeViewTree() = FunctionDeclaration(
+        name = "summarize_view_tree",
+        description = "Returns a compact, text-oriented UI summary (fingerprint + clickable labels with node ids). Use when the full get_view_tree JSON is too large or you only need tap targets. Updates the same scan cache as get_view_tree. No pixel/vision data.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {}
+        }
+    )
+
+    private fun describeScreen() = FunctionDeclaration(
+        name = "describe_screen",
+        description = "Fallback when the accessibility tree is empty, unreliable, or the UI is WebView/game/custom-rendered: capture the current screen and get a short visual description via Gemini vision (requires API 30+, cloud key). Prefer get_view_tree or summarize_view_tree (text-only compact summary) first; call this when the tree is insufficient and vision is available.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("question") {
+                    put("type", JsonPrimitive("string"))
+                    put(
+                        "description",
+                        JsonPrimitive("Optional focus question, e.g. where is the login button?")
+                    )
+                }
+            }
         }
     )
 

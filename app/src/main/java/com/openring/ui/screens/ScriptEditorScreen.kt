@@ -1,5 +1,8 @@
 package com.openring.ui.screens
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -52,6 +55,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
@@ -689,6 +693,7 @@ private fun ScheduleSection(
     schedule: Schedule,
     onScheduleChange: (Schedule) -> Unit
 ) {
+    val context = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     val displayText = SCHEDULE_OPTIONS.find { it.first == schedule.type }?.second ?: "關閉"
 
@@ -842,5 +847,38 @@ private fun ScheduleSection(
             label = { Text("每 N 分鐘") },
             modifier = Modifier.fillMaxWidth()
         )
+    }
+
+    Spacer(modifier = Modifier.height(Spacing.md))
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(Spacing.sm)) {
+            Text(
+                "排程可能延遲的原因",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                "省電模式、Doze 與各廠商後台限制，可能延後 WorkManager 觸發；與雲端「永遠在線」敘事不同。若需較準時，請選「精準」或「常駐」模式，並在系統設定中允許本 App 背景執行／忽略電池最佳化（選項因裝置而異）。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(Spacing.xs))
+            TextButton(
+                onClick = {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                }
+            ) {
+                Text("開啟應用程式資訊（電池／背景）")
+            }
+        }
     }
 }

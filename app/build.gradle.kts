@@ -6,6 +6,14 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// llama-kotlin-android 會拉較新的 androidx.core；專案維持 compileSdk 35 時強制對齊既有版本。
+configurations.configureEach {
+    resolutionStrategy {
+        force("androidx.core:core-ktx:1.15.0")
+        force("androidx.core:core:1.15.0")
+    }
+}
+
 android {
     namespace = "com.openring"
     compileSdk = 35
@@ -16,6 +24,10 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
+        // llama-kotlin-android / llama.cpp：實機以 arm64 為主；模擬器用 x86_64。
+        ndk {
+            abiFilters += listOf("arm64-v8a", "x86_64")
+        }
     }
 
     lint {
@@ -88,4 +100,7 @@ dependencies {
 
     // BYOK secure storage (MVP)
     implementation("androidx.security:security-crypto:1.1.0")
+
+    // On-device GGUF inference (text); see https://github.com/CodeShipping/llama-kotlin-android
+    implementation("org.codeshipping:llama-kotlin-android:0.1.0")
 }
