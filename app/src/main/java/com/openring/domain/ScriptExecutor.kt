@@ -12,6 +12,7 @@ import com.openring.core.OverlayService
 import com.openring.core.ViewNodeUtils
 import com.openring.core.model.ActionResult
 import com.openring.core.model.ViewNode
+import com.openring.ui.MainActivity
 import com.openring.agent.ReActCoordinator
 import com.openring.agent.RunCancellationRegistry
 import com.openring.data.ChatRepository
@@ -44,7 +45,11 @@ class ScriptExecutor(
         data class Failure(val stepIndex: Int, val error: String) : ExecutionResult()
     }
 
-    suspend fun execute(script: Script, onStepComplete: ((Int, String) -> Unit)? = null): ExecutionResult {
+    suspend fun execute(
+        script: Script,
+        restoreOpenRingOnFinish: Boolean = false,
+        onStepComplete: ((Int, String) -> Unit)? = null
+    ): ExecutionResult {
         Log.d("OpenRing", "ScriptExecutor: 開始解析腳本 stepsJson=${script.stepsJson.take(200)}...")
         val steps = parseSteps(script.stepsJson)
         Log.d("OpenRing", "ScriptExecutor: 解析到 ${steps.size} 個步驟")
@@ -90,6 +95,9 @@ class ScriptExecutor(
             return ExecutionResult.Success(variables.toMap())
         } finally {
             stopScriptRunUi(appCtx, runSessionId)
+            if (restoreOpenRingOnFinish) {
+                bringOpenRingToFront(appCtx)
+            }
         }
     }
 
@@ -134,6 +142,18 @@ class ScriptExecutor(
                 appCtx.stopService(Intent(appCtx, OverlayService::class.java))
             } catch (_: Exception) {
             }
+        }
+    }
+
+    private fun bringOpenRingToFront(appCtx: Context) {
+        try {
+            val intent = Intent(appCtx, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                setPackage(appCtx.packageName)
+            }
+            appCtx.startActivity(intent)
+        } catch (e: Exception) {
+            Log.w("OpenRing", "ScriptExecutor: 無法切回 OpenRing", e)
         }
     }
 

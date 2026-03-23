@@ -21,26 +21,24 @@ class ScriptScheduledWorker(
         val script = db.scriptDao().getScriptById(scriptId) ?: return Result.failure()
         val scriptStore = com.openring.data.ScriptStore(db.scriptDao())
         val schedule = scriptStore.parseSchedule(script.scheduleJson)
+        val shouldChainNext = schedule.enabled && when (schedule.type) {
+            "daily", "hourly" -> true
+            "interval" -> schedule.mode != "exact" && schedule.mode != "always_on"
+            else -> false
+        }
+
+        // 先續排下一次，避免本次執行失敗後排程斷鍊。
+        if (shouldChainNext) {
+            Scheduler(applicationContext).scheduleScript(scriptId, schedule)
+        }
 
         val executor = ScriptExecutor(applicationContext, db.executionHistoryDao())
-        val result = executor.execute(script)
+        val result = executor.execute(script, restoreOpenRingOnFinish = true)
 
         return when (result) {
-            is ScriptExecutor.ExecutionResult.Success -> {
-                // daily/hourly/interval(battery) 採 OneTime 鏈，需在成功後續排；interval(exact) 由 Alarm 先續排故不在此重複排程
-                if (schedule.enabled) {
-                    val chainNext = when (schedule.type) {
-                        "daily", "hourly" -> true
-                        "interval" -> schedule.mode != "exact" && schedule.mode != "always_on"
-                        else -> false
-                    }
-                    if (chainNext) {
-                        Scheduler(applicationContext).scheduleScript(scriptId, schedule)
-                    }
-                }
-                Result.success()
-            }
-            is ScriptExecutor.ExecutionResult.Failure -> Result.retry()
+            is ScriptExecutor.ExecutionResult.Success -> Result.success()
+            // 已先續排下一次，避免 WorkManager retry backoff 破壞固定頻率
+            is ScriptExecutor.ExecutionResult.Failure -> Result.success()
         }
     }
 }

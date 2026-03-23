@@ -143,7 +143,7 @@ class AlwaysOnSchedulerService : Service() {
             }
 
             try {
-                executor.execute(refreshed)
+                executor.execute(refreshed, restoreOpenRingOnFinish = true)
             } catch (e: Exception) {
                 Log.e("AlwaysOnScheduler", "執行腳本失敗 id=${refreshed.id}", e)
             }
