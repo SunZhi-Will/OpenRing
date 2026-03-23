@@ -62,15 +62,15 @@ OpenRing 完全使用 **Kotlin** 構建，並利用現代 Android 開發實踐�
 
 ### 核心組件
 
-| 模組 | 說明 |
-|--------|-------------|
-| **View Tree Parser** | 使用 `AccessibilityService` 遍歷螢幕的 UI 節點樹並將其轉換為結構化的 JSON。 |
-| **Action Executor** | 使用 Accessibility API 安全地分派標準手勢 (點擊、滑動、全域動作)。 |
-| **Intent Router** | 使用 Android Intents、Deep Links 或套件名稱喚醒或導航至目標應用程式。 |
-| **Script Engine** | 解析並執行預定義的 JSON/DSL 腳本，整合邏輯、變數和條件。 |
-| **Scheduler** | 基於 Android `WorkManager` 構建，用於可靠地在背景執行定期或延遲任務。 |
+| 模組                      | 說明                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------- |
+| **View Tree Parser**      | 使用 `AccessibilityService` 遍歷螢幕的 UI 節點樹並將其轉換為結構化的 JSON。       |
+| **Action Executor**       | 使用 Accessibility API 安全地分派標準手勢 (點擊、滑動、全域動作)。                |
+| **Intent Router**         | 使用 Android Intents、Deep Links 或套件名稱喚醒或導航至目標應用程式。             |
+| **Script Engine**         | 解析並執行預定義的 JSON/DSL 腳本，整合邏輯、變數和條件。                          |
+| **Scheduler**             | 基於 Android `WorkManager` 構建，用於可靠地在背景執行定期或延遲任務。             |
 | **Agent（ReAct + 工具）** | `ReActCoordinator` + `ToolDispatcher` — Gemini 函式呼叫、工具結果、可選 UI 壓縮。 |
-| **本機 LLM** | `LocalLlmEngine` — 透過 `llama-kotlin-android` 載入 GGUF 並推論，聊天支援串流。 |
+| **本機 LLM**              | `LocalLlmEngine` — 透過 `llama-kotlin-android` 載入 GGUF 並推論，聊天支援串流。   |
 
 ### 專案結構
 
@@ -123,10 +123,23 @@ cd OpenRing
 
 每次 **Android CI** 成功執行後，會將 **debug APK** 以 workflow 產物 **`openring-debug-apk`** 上傳（ZIP 內含 `.apk`）。
 
-| 方式 | 連結 |
-|--------|------|
-| **直連下載（ZIP，無需登入 GitHub）** | [透過 nightly.link 取得最新 `openring-debug-apk.zip`](https://nightly.link/SunZhi-Will/OpenRing/workflows/android-ci/main/openring-debug-apk.zip) — 解壓縮後安裝其中的 `.apk`。 |
-| **GitHub Actions 頁面** | [Android CI 執行紀錄（`main` 分支）](https://github.com/SunZhi-Will/OpenRing/actions/workflows/android-ci.yml?query=branch%3Amain) → 選擇成功的執行 → **Artifacts** → `openring-debug-apk`（自 GitHub 下載時可能需登入）。 |
+| 方式                                 | 連結                                                                                                                                                                                                                       |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **直連下載（ZIP，無需登入 GitHub）** | [透過 nightly.link 取得最新 `openring-debug-apk.zip`](https://nightly.link/SunZhi-Will/OpenRing/workflows/android-ci/main/openring-debug-apk.zip) — 解壓縮後安裝其中的 `.apk`。                                            |
+| **GitHub Actions 頁面**              | [Android CI 執行紀錄（`main` 分支）](https://github.com/SunZhi-Will/OpenRing/actions/workflows/android-ci.yml?query=branch%3Amain) → 選擇成功的執行 → **Artifacts** → `openring-debug-apk`（自 GitHub 下載時可能需登入）。 |
+
+#### 在 GitHub Release 附上 APK／AAB（建議）
+
+Release 頁面：[SunZhi-Will/OpenRing Releases](https://github.com/SunZhi-Will/OpenRing/releases)
+
+建立 **New release** 時，建議將可安裝檔直接附在 **Assets**，方便使用者不經 CI 頁面就能下載：
+
+- `app-release.apk`（可安裝）
+- `app-release.aab`（供 Play Console 上傳）
+- `SHA256SUMS.txt`（校驗碼）
+- `CHANGELOG` 或 release notes（本次更新內容與已知限制）
+
+> **注意**：目前專案的 CI 預設會產出 **unsigned debug APK**（工作流產物）。正式 release 檔請確認你上傳的是已簽名後的產物。
 
 > **注意**：首次安裝 App 後，請務必前往系統的「設定 > 無障礙設定 (Accessibility)」中，手動啟用 **OpenRing Accessibility Service**，App 才能正常運作。
 
@@ -134,17 +147,17 @@ cd OpenRing
 
 ## 📚 文件導覽
 
-| 文件名稱 | 說明 |
-|----------|------|
-| [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md) | 專案總覽、架構設計、里程碑規劃與潛在風險 |
-| [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md) | 產品功能待辦清單、使用者故事與優先級評估 |
-| [PRD.md](docs/product/PRD.md) | 產品需求：對話驅動、Gemini、技能、無障礙等 |
-| [AI_AGENT.md](docs/technical/AI_AGENT.md) | **Agent 架構**：ReAct、工具（含 `summarize_view_tree`、視覺）、本機 GGUF、原始碼索引 |
-| [SKILLS.md](docs/technical/SKILLS.md) | 工具與技能、QuickJS、道德鎖定說明 |
-| [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md) | 腳本引擎支援的 JSON 格式定義與動作清單 |
-| [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | 團隊分工與 AI 開發的系統 Prompt 參考 |
-| [CI_CD.md](docs/technical/CI_CD.md) | GitHub Actions（除錯版 APK 產物、CodeQL、Dependabot、Dependency Review） |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | 完整的開源貢獻指南與 PR 提交流程 |
+| 文件名稱                                                | 說明                                                                                 |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md)         | 專案總覽、架構設計、里程碑規劃與潛在風險                                             |
+| [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md)   | 產品功能待辦清單、使用者故事與優先級評估                                             |
+| [PRD.md](docs/product/PRD.md)                           | 產品需求：對話驅動、Gemini、技能、無障礙等                                           |
+| [AI_AGENT.md](docs/technical/AI_AGENT.md)               | **Agent 架構**：ReAct、工具（含 `summarize_view_tree`、視覺）、本機 GGUF、原始碼索引 |
+| [SKILLS.md](docs/technical/SKILLS.md)                   | 工具與技能、QuickJS、道德鎖定說明                                                    |
+| [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md)     | 腳本引擎支援的 JSON 格式定義與動作清單                                               |
+| [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | 團隊分工與 AI 開發的系統 Prompt 參考                                                 |
+| [CI_CD.md](docs/technical/CI_CD.md)                     | GitHub Actions（除錯版 APK 產物、CodeQL、Dependabot、Dependency Review）             |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                      | 完整的開源貢獻指南與 PR 提交流程                                                     |
 
 ---
 

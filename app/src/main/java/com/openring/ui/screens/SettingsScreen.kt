@@ -90,6 +90,7 @@ import com.openring.security.ApiKeyStore
 import com.openring.localmodel.LocalLlmEngine
 import com.openring.localmodel.LocalModelCatalog
 import com.openring.localmodel.LocalModelDownloader
+import com.openring.localmodel.LocalModelSupport
 import com.openring.settings.ModelOption
 import com.openring.settings.ModelStore
 import kotlinx.coroutines.Dispatchers
@@ -106,6 +107,8 @@ fun SettingsScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     val keyStore = remember { ApiKeyStore(context) }
     val modelStore = remember { ModelStore(context) }
+    val localModelSupported = remember { LocalModelSupport.isSupportedDevice() }
+    val localModelUnsupportedReason = remember { LocalModelSupport.unsupportedReason() }
 
     val models = remember { mutableStateListOf<ModelOption>() }
     val scope = rememberCoroutineScope()
@@ -118,6 +121,10 @@ fun SettingsScreen(
     }
 
     fun startLocalDownload(item: ModelOption) {
+        if (!localModelSupported) {
+            Toast.makeText(context, localModelUnsupportedReason, Toast.LENGTH_LONG).show()
+            return
+        }
         val entry = LocalModelCatalog.byId(item.model) ?: return
         if (downloadingOptionId != null) return
         scope.launch {
@@ -178,10 +185,12 @@ fun SettingsScreen(
                 models = models,
                 isModelReady = { item ->
                     when (item.provider.lowercase()) {
-                        "local" -> LocalModelCatalog.isDownloaded(context, item.model)
+                        "local" -> localModelSupported && LocalModelCatalog.isDownloaded(context, item.model)
                         else -> keyStore.getGeminiApiKeyForModel(item.id).isNullOrBlank().not()
                     }
                 },
+                localModelSupported = localModelSupported,
+                localModelUnsupportedReason = localModelUnsupportedReason,
                 downloadingOptionId = downloadingOptionId,
                 downloadProgress = downloadProgress,
                 onRequestDownload = { id ->
@@ -198,9 +207,15 @@ fun SettingsScreen(
         ModelUpsertDialog(
             title = "新增模型",
             initial = null,
+            allowLocalModel = localModelSupported,
+            localModelUnsupportedReason = localModelUnsupportedReason,
             onDismiss = { addDialogOpen = false },
             onConfirm = { chosen, key ->
                 if (chosen.provider == ModelProvider.LOCAL) {
+                    if (!localModelSupported) {
+                        Toast.makeText(context, localModelUnsupportedReason, Toast.LENGTH_LONG).show()
+                        return@ModelUpsertDialog
+                    }
                     if (models.any { it.provider == "local" && it.model == chosen.model }) {
                         Toast.makeText(context, "清單中已有相同地端模型", Toast.LENGTH_SHORT).show()
                         return@ModelUpsertDialog
@@ -236,6 +251,8 @@ fun SettingsScreen(
             title = "編輯模型",
             initial = editInitial,
             initialKey = currentKey,
+            allowLocalModel = localModelSupported,
+            localModelUnsupportedReason = localModelUnsupportedReason,
             onDismiss = { editDialogModelId = null },
             onRequestDelete = {
                 val id = editTarget.id
@@ -244,6 +261,10 @@ fun SettingsScreen(
             },
             onConfirm = { chosen, key ->
                 if (chosen.provider == ModelProvider.LOCAL) {
+                    if (!localModelSupported) {
+                        Toast.makeText(context, localModelUnsupportedReason, Toast.LENGTH_LONG).show()
+                        return@ModelUpsertDialog
+                    }
                     val dup = models.any {
                         it.id != editTarget.id && it.provider == "local" && it.model == chosen.model
                     }
@@ -314,6 +335,8 @@ fun SettingsScreen(
 private fun ModelReorderList(
     models: androidx.compose.runtime.snapshots.SnapshotStateList<ModelOption>,
     isModelReady: (ModelOption) -> Boolean,
+    localModelSupported: Boolean,
+    localModelUnsupportedReason: String,
     downloadingOptionId: String?,
     downloadProgress: Float?,
     onRequestDownload: (String) -> Unit,
@@ -427,6 +450,8 @@ private fun ModelReorderList(
                     ModelListCardContent(
                         item = item,
                         readyForUse = ready,
+                        localModelSupported = localModelSupported,
+                        localModelUnsupportedReason = localModelUnsupportedReason,
                         downloading = downloadingOptionId == item.id,
                         downloadProgress = if (downloadingOptionId == item.id) downloadProgress else null,
                         onRequestDownload = { onRequestDownload(item.id) },
@@ -444,6 +469,8 @@ private fun ModelReorderList(
             draggingItemId = draggingItemId,
             models = models,
             isModelReady = isModelReady,
+            localModelSupported = localModelSupported,
+            localModelUnsupportedReason = localModelUnsupportedReason,
             downloadingOptionId = downloadingOptionId,
             downloadProgress = downloadProgress,
             onRequestDownload = onRequestDownload,
@@ -462,6 +489,8 @@ private fun DraggingOverlayIfNeeded(
     draggingItemId: String?,
     models: List<ModelOption>,
     isModelReady: (ModelOption) -> Boolean,
+    localModelSupported: Boolean,
+    localModelUnsupportedReason: String,
     downloadingOptionId: String?,
     downloadProgress: Float?,
     onRequestDownload: (String) -> Unit,
@@ -477,6 +506,8 @@ private fun DraggingOverlayIfNeeded(
         DraggingOverlay(
             item = item,
             readyForUse = ready,
+            localModelSupported = localModelSupported,
+            localModelUnsupportedReason = localModelUnsupportedReason,
             downloading = downloadingOptionId == item.id,
             downloadProgress = if (downloadingOptionId == item.id) downloadProgress else null,
             onRequestDownload = { onRequestDownload(item.id) },
@@ -493,6 +524,8 @@ private fun DraggingOverlayIfNeeded(
 private fun DraggingOverlay(
     item: ModelOption,
     readyForUse: Boolean,
+    localModelSupported: Boolean,
+    localModelUnsupportedReason: String,
     downloading: Boolean,
     downloadProgress: Float?,
     onRequestDownload: () -> Unit,
@@ -523,6 +556,8 @@ private fun DraggingOverlay(
             ModelListCardContent(
                 item = item,
                 readyForUse = readyForUse,
+                localModelSupported = localModelSupported,
+                localModelUnsupportedReason = localModelUnsupportedReason,
                 downloading = downloading,
                 downloadProgress = downloadProgress,
                 onRequestDownload = onRequestDownload,
@@ -541,6 +576,8 @@ private fun DraggingOverlay(
 private fun ModelListCardContent(
     item: ModelOption,
     readyForUse: Boolean,
+    localModelSupported: Boolean,
+    localModelUnsupportedReason: String,
     downloading: Boolean,
     downloadProgress: Float?,
     onRequestDownload: () -> Unit,
@@ -582,6 +619,12 @@ private fun ModelListCardContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 when {
+                    !localModelSupported ->
+                        Text(
+                            localModelUnsupportedReason,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
                     downloading -> {
                         Text("下載中…", style = MaterialTheme.typography.bodySmall)
                         if (downloadProgress != null) {
@@ -621,7 +664,13 @@ private fun ModelListCardContent(
             }
         }
 
-        if (item.provider.equals("local", ignoreCase = true) && !downloading && !readyForUse && showMenu) {
+        if (
+            item.provider.equals("local", ignoreCase = true) &&
+            localModelSupported &&
+            !downloading &&
+            !readyForUse &&
+            showMenu
+        ) {
             IconButton(
                 onClick = onRequestDownload,
                 modifier = Modifier.size(40.dp)
@@ -777,6 +826,8 @@ private fun ModelUpsertDialog(
     title: String,
     initial: KnownModel?,
     initialKey: String = "",
+    allowLocalModel: Boolean = true,
+    localModelUnsupportedReason: String = "",
     onDismiss: () -> Unit,
     onConfirm: (KnownModel, String) -> Unit,
     onRequestDelete: (() -> Unit)? = null,
@@ -804,10 +855,11 @@ private fun ModelUpsertDialog(
     }
 
     val pickerModels = if (sourceMode == ModelSourceMode.LOCAL) KNOWN_LOCAL_MODELS else KNOWN_MODELS
+    val effectivePickerModels = if (allowLocalModel) pickerModels else KNOWN_MODELS
 
     if (showModelPicker) {
         ModelPickerSheet(
-            models = pickerModels,
+            models = effectivePickerModels,
             selected = selected,
             onDismiss = { showModelPicker = false },
             onSelect = { selected = it; showModelPicker = false }
@@ -833,12 +885,22 @@ private fun ModelUpsertDialog(
                     Text("雲端 API", style = MaterialTheme.typography.bodyMedium)
                     RadioButton(
                         selected = sourceMode == ModelSourceMode.LOCAL,
+                        enabled = allowLocalModel,
                         onClick = {
-                            sourceMode = ModelSourceMode.LOCAL
-                            selected = KNOWN_LOCAL_MODELS.first()
+                            if (allowLocalModel) {
+                                sourceMode = ModelSourceMode.LOCAL
+                                selected = KNOWN_LOCAL_MODELS.first()
+                            }
                         }
                     )
                     Text("地端模型", style = MaterialTheme.typography.bodyMedium)
+                }
+                if (!allowLocalModel) {
+                    Text(
+                        localModelUnsupportedReason,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
 
                 OutlinedTextField(

@@ -98,6 +98,7 @@ import com.openring.data.MemoryRepository
 import com.openring.data.model.ChatMessageEntity
 import com.openring.data.model.ChatSession
 import com.openring.localmodel.LocalModelCatalog
+import com.openring.localmodel.LocalModelSupport
 import com.openring.settings.AiPromptStore
 import com.openring.security.ApiKeyStore
 import com.openring.settings.ModelStore
@@ -134,12 +135,14 @@ fun ChatScreen(
     val memoryRepository = remember { MemoryRepository(context) }
     val keyStore = remember { ApiKeyStore(context) }
     val modelStore = remember { ModelStore(context) }
+    val localModelSupported = remember { LocalModelSupport.isSupportedDevice() }
     val modelChain = modelStore.getModels()
     val runnableGemini = modelChain.filter {
         it.provider == "gemini" && keyStore.getGeminiApiKeyForModel(it.id).isNullOrBlank().not()
     }
     val runnableLocal = modelChain.filter {
-        it.provider.equals("local", ignoreCase = true) &&
+        localModelSupported &&
+            it.provider.equals("local", ignoreCase = true) &&
             LocalModelCatalog.isDownloaded(context, it.model)
     }
     val canRunChat = runnableGemini.isNotEmpty() || runnableLocal.isNotEmpty()

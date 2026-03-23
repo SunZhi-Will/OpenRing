@@ -1,18 +1,15 @@
 package com.openring.localmodel
 
 import android.content.Context
+import android.app.ActivityManager
 import android.util.Log
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.codeshipping.llamakotlin.LlamaConfig
 import java.util.concurrent.Executors
-import kotlin.math.min
 
 data class LocalInferenceParams(
     val contextSize: Int,
@@ -26,11 +23,11 @@ data class LocalInferenceParams(
 fun localInferenceParamsForCatalog(catalogId: String): LocalInferenceParams {
     val id = catalogId.lowercase()
     return when {
-        id.contains("phi") -> LocalInferenceParams(contextSize = 4096, maxTokens = 640, threadCap = 6)
-        id.contains("gemma") -> LocalInferenceParams(contextSize = 4096, maxTokens = 704, threadCap = 6)
-        id.contains("qwen") -> LocalInferenceParams(contextSize = 4096, maxTokens = 768, threadCap = 6)
-        id.contains("tinyllama") -> LocalInferenceParams(contextSize = 2048, maxTokens = 512, threadCap = 6)
-        else -> LocalInferenceParams(contextSize = 2048, maxTokens = 608, threadCap = 6)
+        id.contains("phi") -> LocalInferenceParams(contextSize = 2048, maxTokens = 320, threadCap = 4)
+        id.contains("gemma") -> LocalInferenceParams(contextSize = 2048, maxTokens = 320, threadCap = 4)
+        id.contains("qwen") -> LocalInferenceParams(contextSize = 2048, maxTokens = 320, threadCap = 4)
+        id.contains("tinyllama") -> LocalInferenceParams(contextSize = 768, maxTokens = 96, threadCap = 2)
+        else -> LocalInferenceParams(contextSize = 1536, maxTokens = 256, threadCap = 4)
     }
 }
 
@@ -106,9 +103,13 @@ object LocalLlmEngine {
     }
 
     private fun buildLlamaConfig(params: LocalInferenceParams): LlamaConfig {
-        // 實機：單執行緒 + 小 batch 仍可能在 nativeGenerate SIGSEGV；Android 上 mmap 偶發與檔案對應／記憶體行為有關，改 no-mmap 較穩。
+        // Keep generation footprint low on Android to avoid native instability.
         val threads = 1
-        val batch = min(64, params.contextSize / 16).coerceAtLeast(16)
+        val batch = when {
+            params.contextSize <= 1024 -> 8
+            params.contextSize <= 1536 -> 12
+            else -> 16
+        }
         return LlamaConfig().apply {
             contextSize = params.contextSize
             batchSize = batch
@@ -125,6 +126,39 @@ object LocalLlmEngine {
         }.also { it.validate() }
     }
 
+    private fun assertMemoryBudget(context: Context, modelFile: java.io.File, catalogId: String) {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            ?: return
+        val memInfo = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+        val modelBytes = modelFile.length().coerceAtLeast(0L)
+        if (modelBytes <= 0L) return
+
+        // Model-size aware budgets: keep protection for larger GGUFs while allowing tiny models.
+        val isTinyClass = catalogId.lowercase().contains("tinyllama") || modelBytes <= 800L * 1024L * 1024L
+        val availMultiplier = if (isTinyClass) 1.15 else 1.6
+        val totalMultiplier = if (isTinyClass) 1.3 else 1.9
+        val minAvailBytes = (modelBytes * availMultiplier).toLong()
+        val minTotalBytes = (modelBytes * totalMultiplier).toLong()
+        val isUnderBudget = memInfo.availMem < minAvailBytes || memInfo.totalMem < minTotalBytes
+        if (!isUnderBudget) return
+
+        val modelMb = modelBytes / (1024 * 1024)
+        val availMb = memInfo.availMem / (1024 * 1024)
+        val totalMb = memInfo.totalMem / (1024 * 1024)
+        val minAvailMb = minAvailBytes / (1024 * 1024)
+        val minTotalMb = minTotalBytes / (1024 * 1024)
+        if (isTinyClass) {
+            Log.w(
+                TAG,
+                "Low-memory allow for tiny model ($catalogId, model=${modelMb}MB, avail=${availMb}MB, total=${totalMb}MB, needAvail>=${minAvailMb}MB, needTotal>=${minTotalMb}MB)"
+            )
+            return
+        }
+        throw IllegalStateException(
+            "裝置記憶體不足以穩定載入此本機模型（$catalogId, model=${modelMb}MB, avail=${availMb}MB, total=${totalMb}MB, needAvail>=${minAvailMb}MB, needTotal>=${minTotalMb}MB）。請改用較小模型或先釋放記憶體。"
+        )
+    }
+
     private fun ensureNativeModelLoaded(context: Context, catalogId: String, file: java.io.File, params: LocalInferenceParams) {
         LocalLlamaJni.ensureLoaded()
         if (loadedCatalogId == catalogId && nativeHandle != 0L &&
@@ -133,6 +167,7 @@ object LocalLlmEngine {
         ) {
             return
         }
+        assertMemoryBudget(context, file, catalogId)
         closeNativeLocked()
         val config = buildLlamaConfig(params)
         val handle = LocalLlamaJni.nativeCreateContext()
@@ -207,31 +242,37 @@ object LocalLlmEngine {
                     TAG,
                     "LocalLlmEngine.generate jni catalogId=$catalogId promptChars=${safePrompt.length} ctx=${params.contextSize} maxTok=${params.maxTokens}"
                 )
-                coroutineScope {
-                    val cancelWatch = launch {
-                        while (isActive) {
-                            delay(280)
+                try {
+                    coroutineScope {
+                        try {
                             if (isCancelled()) {
-                                runCatching { LocalLlamaJni.nativeCancelGeneration(handle) }
-                                break
+                                return@coroutineScope "已中斷。"
                             }
+                            // nativeGenerate has repeatedly SIGSEGV on some devices;
+                            // use stream API and accumulate to avoid that JNI path.
+                            val sb = StringBuilder()
+                            LocalLlamaJni.nativeGenerateStream(
+                                handle,
+                                safePrompt,
+                                LocalLlamaJni.TokenSink { token ->
+                                    if (isCancelled()) return@TokenSink
+                                    sb.append(token)
+                                },
+                                cfg,
+                            )
+                            if (isCancelled()) "已中斷。" else sb.toString()
+                        } catch (e: Throwable) {
+                            Log.e(TAG, "Local generate failed catalogId=$catalogId", e)
+                            val msg = e.message?.replace("\n", " ")?.take(400)
+                            if (!msg.isNullOrBlank()) {
+                                return@coroutineScope "本機推論失敗：$msg"
+                            }
+                            return@coroutineScope "本機推論失敗：${e.javaClass.simpleName}"
                         }
                     }
-                    try {
-                        if (isCancelled()) {
-                            return@coroutineScope "已中斷。"
-                        }
-                        LocalLlamaJni.nativeGenerate(handle, safePrompt, cfg)
-                    } catch (e: Throwable) {
-                        Log.e(TAG, "Local generate failed catalogId=$catalogId", e)
-                        val msg = e.message?.replace("\n", " ")?.take(400)
-                        if (!msg.isNullOrBlank()) {
-                            return@coroutineScope "本機推論失敗：$msg"
-                        }
-                        return@coroutineScope "本機推論失敗：${e.javaClass.simpleName}"
-                    } finally {
-                        cancelWatch.cancel()
-                    }
+                } finally {
+                    // Empirical workaround for Android crashes: do not reuse context across requests.
+                    closeNativeLocked()
                 }
             }
         }
@@ -273,41 +314,41 @@ object LocalLlmEngine {
                     "LocalLlmEngine.generateStream jni catalogId=$catalogId promptChars=${safePrompt.length} ctx=${params.contextSize} maxTok=${params.maxTokens}"
                 )
                 val sb = StringBuilder()
-                coroutineScope {
-                    val cancelWatch = launch {
-                        while (isActive) {
-                            delay(280)
+                try {
+                    coroutineScope {
+                        var cancelIssued = false
+                        try {
                             if (isCancelled()) {
-                                runCatching { LocalLlamaJni.nativeCancelGeneration(handle) }
-                                break
+                                return@coroutineScope "已中斷。"
                             }
+                            LocalLlamaJni.nativeGenerateStream(
+                                handle,
+                                safePrompt,
+                                LocalLlamaJni.TokenSink { token ->
+                                    if (isCancelled()) {
+                                        if (!cancelIssued) {
+                                            cancelIssued = true
+                                            runCatching { LocalLlamaJni.nativeCancelGeneration(handle) }
+                                        }
+                                        return@TokenSink
+                                    }
+                                    sb.append(token)
+                                    onAccumulatedText(sb.toString())
+                                },
+                                cfg,
+                            )
+                            sb.toString()
+                        } catch (e: Throwable) {
+                            Log.e(TAG, "Local stream failed catalogId=$catalogId", e)
+                            val msg = e.message?.replace("\n", " ")?.take(400)
+                            if (!msg.isNullOrBlank()) {
+                                return@coroutineScope "本機推論失敗：$msg"
+                            }
+                            return@coroutineScope "本機推論失敗：${e.javaClass.simpleName}"
                         }
                     }
-                    try {
-                        if (isCancelled()) {
-                            return@coroutineScope "已中斷。"
-                        }
-                        LocalLlamaJni.nativeGenerateStream(
-                            handle,
-                            safePrompt,
-                            LocalLlamaJni.TokenSink { token ->
-                                if (isCancelled()) return@TokenSink
-                                sb.append(token)
-                                onAccumulatedText(sb.toString())
-                            },
-                            cfg,
-                        )
-                        sb.toString()
-                    } catch (e: Throwable) {
-                        Log.e(TAG, "Local stream failed catalogId=$catalogId", e)
-                        val msg = e.message?.replace("\n", " ")?.take(400)
-                        if (!msg.isNullOrBlank()) {
-                            return@coroutineScope "本機推論失敗：$msg"
-                        }
-                        return@coroutineScope "本機推論失敗：${e.javaClass.simpleName}"
-                    } finally {
-                        cancelWatch.cancel()
-                    }
+                } finally {
+                    closeNativeLocked()
                 }
             }
         }

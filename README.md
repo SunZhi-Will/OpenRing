@@ -60,15 +60,15 @@ OpenRing is built entirely in **Kotlin** and leverages modern Android developmen
 
 ### Core Components
 
-| Module | Description |
-|--------|-------------|
-| **View Tree Parser** | Uses `AccessibilityService` to traverse the screen's UI node tree and converts it into structured JSON. |
-| **Action Executor** | Dispatches standard gestures (click, swipe, global actions) safely using the Accessibility API. |
-| **Intent Router** | Wakes up or navigates to target applications using Android Intents, Deep Links, or Package Names. |
-| **Script Engine** | Parses and executes predefined JSON/DSL scripts, integrating logic, variables, and conditions. |
-| **Scheduler** | Built on Android `WorkManager` for reliable, background execution of periodic or delayed tasks. |
-| **Agent (ReAct + Tools)** | `ReActCoordinator` + `ToolDispatcher` — Gemini function calling, tool results, optional UI compaction. |
-| **Local LLM** | `LocalLlmEngine` — GGUF load/inference via `llama-kotlin-android`, streaming generation for chat. |
+| Module                    | Description                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **View Tree Parser**      | Uses `AccessibilityService` to traverse the screen's UI node tree and converts it into structured JSON. |
+| **Action Executor**       | Dispatches standard gestures (click, swipe, global actions) safely using the Accessibility API.         |
+| **Intent Router**         | Wakes up or navigates to target applications using Android Intents, Deep Links, or Package Names.       |
+| **Script Engine**         | Parses and executes predefined JSON/DSL scripts, integrating logic, variables, and conditions.          |
+| **Scheduler**             | Built on Android `WorkManager` for reliable, background execution of periodic or delayed tasks.         |
+| **Agent (ReAct + Tools)** | `ReActCoordinator` + `ToolDispatcher` — Gemini function calling, tool results, optional UI compaction.  |
+| **Local LLM**             | `LocalLlmEngine` — GGUF load/inference via `llama-kotlin-android`, streaming generation for chat.       |
 
 ### Project Structure
 
@@ -121,10 +121,23 @@ The debug APK is written to `app/build/outputs/apk/debug/` (typically `app-debug
 
 Each successful run of **Android CI** uploads a **debug APK** as the workflow artifact `openring-debug-apk` (a ZIP containing the `.apk` file).
 
-| Method | Link |
-|--------|------|
-| **Direct download (ZIP, no GitHub login)** | [Latest `openring-debug-apk.zip` via nightly.link](https://nightly.link/SunZhi-Will/OpenRing/workflows/android-ci/main/openring-debug-apk.zip) — unzip locally, then install the `.apk` inside. |
-| **GitHub Actions UI** | [Android CI workflow runs (branch `main`)](https://github.com/SunZhi-Will/OpenRing/actions/workflows/android-ci.yml?query=branch%3Amain) → open a green run → **Artifacts** → `openring-debug-apk` (GitHub may require login to download). |
+| Method                                     | Link                                                                                                                                                                                                                                       |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Direct download (ZIP, no GitHub login)** | [Latest `openring-debug-apk.zip` via nightly.link](https://nightly.link/SunZhi-Will/OpenRing/workflows/android-ci/main/openring-debug-apk.zip) — unzip locally, then install the `.apk` inside.                                            |
+| **GitHub Actions UI**                      | [Android CI workflow runs (branch `main`)](https://github.com/SunZhi-Will/OpenRing/actions/workflows/android-ci.yml?query=branch%3Amain) → open a green run → **Artifacts** → `openring-debug-apk` (GitHub may require login to download). |
+
+#### Attach APK/AAB to GitHub Releases (recommended)
+
+Release page: [SunZhi-Will/OpenRing Releases](https://github.com/SunZhi-Will/OpenRing/releases)
+
+When creating a **New release**, upload installable/distributable files directly in **Assets** so users can download them without browsing CI runs:
+
+- `app-release.apk` (installable)
+- `app-release.aab` (for Play Console)
+- `SHA256SUMS.txt` (integrity checks)
+- `CHANGELOG` or release notes (what changed and known limitations)
+
+> Note: this repository’s default CI artifact is an **unsigned debug APK**. For production-grade release files, make sure you generate/sign the artifacts you attach.
 
 > **Note**: After installing the App for the first time, you must manually go to the system's "Settings > Accessibility" and enable the **OpenRing Accessibility Service** for the App to function properly.
 
@@ -132,17 +145,17 @@ Each successful run of **Android CI** uploads a **debug APK** as the workflow ar
 
 ## 📚 Documentation Navigation
 
-| Document | Description |
-|----------|-------------|
-| [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md) | Project overview, architecture design, milestones, and potential risks |
-| [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md) | Product feature backlog, user stories, and priority evaluation |
-| [PRD.md](docs/product/PRD.md) | Product requirements: Chat-Driven OS, Gemini, skills, accessibility |
-| [AI_AGENT.md](docs/technical/AI_AGENT.md) | **Agent stack**: ReAct, tools (`summarize_view_tree`, vision, …), local GGUF, file map |
-| [SKILLS.md](docs/technical/SKILLS.md) | Tools vs Skills, QuickJS, morality guardrails |
-| [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md) | JSON format definition and action list supported by the script engine |
-| [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | Team assignments and system Prompt references for AI development |
-| [CI_CD.md](docs/technical/CI_CD.md) | GitHub Actions (debug APK artifacts, CodeQL, Dependabot, Dependency Review) |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Complete open-source contribution guide and PR submission process |
+| Document                                                | Description                                                                            |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md)         | Project overview, architecture design, milestones, and potential risks                 |
+| [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md)   | Product feature backlog, user stories, and priority evaluation                         |
+| [PRD.md](docs/product/PRD.md)                           | Product requirements: Chat-Driven OS, Gemini, skills, accessibility                    |
+| [AI_AGENT.md](docs/technical/AI_AGENT.md)               | **Agent stack**: ReAct, tools (`summarize_view_tree`, vision, …), local GGUF, file map |
+| [SKILLS.md](docs/technical/SKILLS.md)                   | Tools vs Skills, QuickJS, morality guardrails                                          |
+| [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md)     | JSON format definition and action list supported by the script engine                  |
+| [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | Team assignments and system Prompt references for AI development                       |
+| [CI_CD.md](docs/technical/CI_CD.md)                     | GitHub Actions (debug APK artifacts, CodeQL, Dependabot, Dependency Review)            |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                      | Complete open-source contribution guide and PR submission process                      |
 
 ---
 

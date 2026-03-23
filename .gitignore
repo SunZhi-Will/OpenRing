@@ -6,6 +6,10 @@ local.properties
 /build
 /app/build
 /captures
+# Release artifacts (generated for GitHub Releases)
+/app-release.apk
+/app-release.aab
+/SHA256SUMS.txt
 .externalNativeBuild
 .cxx
 .kotlin/
