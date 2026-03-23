@@ -45,10 +45,12 @@ import com.openring.skills.InstalledSkillStore
 import com.openring.skills.SkillAllowedSourcesStore
 import com.openring.skills.SkillEnabledStore
 import com.openring.skills.SkillInstall
+import com.openring.skills.SkillTemplateCatalog
 import com.openring.ui.theme.Spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,10 +72,33 @@ fun SkillsScreen(
     var statusLine by remember { mutableStateOf<String?>(null) }
     var showUrlInstallDialog by remember { mutableStateOf(false) }
     var urlToInstall by remember { mutableStateOf("") }
+    val templateCatalog = remember { SkillTemplateCatalog.templates }
 
     fun refreshSkillLists() {
         installedIds = installedStore.getInstalledIds()
         enabledIds = enabledStore.getEnabledIds().toSet()
+    }
+
+    fun loadSkillInstructionSummary(skillId: String): String? {
+        val file = File(context.filesDir, "skills/$skillId/SKILL.md")
+        if (!file.isFile) return null
+        val raw = runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: return null
+        val normalized = raw.replace("\r\n", "\n")
+        val body = if (normalized.startsWith("---\n")) {
+            val end = normalized.indexOf("\n---\n", startIndex = 4)
+            if (end >= 0) normalized.substring(end + 5) else normalized
+        } else normalized
+        val oneLine = body
+            .lineSequence()
+            .map { it.trim() }
+            .firstOrNull { it.isNotBlank() && !it.startsWith("#") && !it.startsWith("-") }
+            ?: body.trim().lines().firstOrNull { it.isNotBlank() }
+        return oneLine?.let { if (it.length > 120) it.take(120) + "..." else it }
+    }
+
+    fun installHint(skillId: String): String {
+        val hasSkillMd = File(context.filesDir, "skills/$skillId/SKILL.md").isFile
+        return if (hasSkillMd) "已安裝：$skillId" else "已安裝：$skillId（建議補上 SKILL.md，讓模型更懂何時使用）"
     }
 
     LaunchedEffect(Unit) {
@@ -95,7 +120,7 @@ fun SkillsScreen(
             withContext(Dispatchers.Main) {
                 when (result) {
                     is SkillInstall.Result.Ok -> {
-                        statusLine = "已安裝：${result.skillId}"
+                        statusLine = installHint(result.skillId)
                         refreshSkillLists()
                     }
                     is SkillInstall.Result.Err ->
@@ -166,6 +191,68 @@ fun SkillsScreen(
                     Text("新增允許來源")
                 }
                 Spacer(Modifier.height(Spacing.sm))
+            }
+            item {
+                Spacer(Modifier.height(Spacing.sm))
+                Text(
+                    "官方 Skill 範本（按下載才會安裝）",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "下列範本只內建目錄資訊，不會預載；點「下載安裝」後才會寫入本機。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(Spacing.xs))
+            }
+            items(templateCatalog) { template ->
+                val installed = installedIds.contains(template.id)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(Spacing.sm)) {
+                        Text(template.title, style = MaterialTheme.typography.titleSmall)
+                        Spacer(Modifier.height(Spacing.xs))
+                        Text(
+                            template.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(Spacing.sm))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                if (installed) "已安裝：${template.id}" else "未安裝：${template.id}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        when (val result = SkillTemplateCatalog.installTemplate(context, template)) {
+                                            is SkillInstall.Result.Ok -> {
+                                                statusLine = installHint(result.skillId)
+                                                refreshSkillLists()
+                                            }
+                                            is SkillInstall.Result.Err -> {
+                                                statusLine = "錯誤 [${result.code}] ${result.message}"
+                                            }
+                                        }
+                                    }
+                                }
+                            ) {
+                                Text(if (installed) "重新下載安裝" else "下載安裝")
+                            }
+                        }
+                    }
+                }
             }
             items(allowedUrls) { url ->
                 Card(
@@ -249,6 +336,15 @@ fun SkillsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        val summary = loadSkillInstructionSummary(skillId)
+                        Spacer(Modifier.height(Spacing.xs))
+                        Text(
+                            if (summary != null) "SKILL.md: $summary" else "SKILL.md: 未提供（建議加入，提升 AI 使用精準度）",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = Spacing.sm)
+                        )
+                        Spacer(Modifier.height(Spacing.xs))
                     }
                 }
             }
@@ -341,7 +437,7 @@ fun SkillsScreen(
                                         urlToInstall = ""
                                         when (result) {
                                             is SkillInstall.Result.Ok -> {
-                                                statusLine = "已安裝：${result.skillId}"
+                                                statusLine = installHint(result.skillId)
                                                 refreshSkillLists()
                                             }
                                             is SkillInstall.Result.Err ->

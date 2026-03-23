@@ -2,7 +2,6 @@ package com.openring
 
 import android.app.Application
 import android.util.Log
-import com.openring.skills.DefaultSkillBootstrap
 import com.openring.skills.SkillQuickJsExecutor
 import com.openring.worker.ScanScheduler
 import java.io.PrintWriter
@@ -17,7 +16,6 @@ class OpenRingApp : Application() {
     override fun onCreate() {
         super.onCreate()
         SkillQuickJsExecutor.ensureLoaderInitialized()
-        DefaultSkillBootstrap.apply(this)
         ScanScheduler.apply(this)
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->

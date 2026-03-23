@@ -11,7 +11,7 @@ import java.net.URL
 import java.util.zip.ZipInputStream
 
 /**
- * 從 ZIP 安裝 Skill（manifest.json + script.js）。
+ * 從 ZIP 安裝 Skill（manifest.json + script.js，可選 SKILL.md）。
  * 支援本機 InputStream 與允許來源之 URL。
  */
 object SkillInstall {
@@ -45,24 +45,31 @@ object SkillInstall {
     fun installFromZipInputStream(context: Context, input: InputStream): Result {
         return runCatching {
             ZipInputStream(input.buffered()).use { zis ->
-                extractManifestAndScript(zis)
+                extractSkillPackage(zis)
             }
         }.fold(
-            onSuccess = { pair ->
+            onSuccess = { pkg ->
                 when {
-                    pair == null ->
+                    pkg == null ->
                         Result.Err("INVALID_PACKAGE", "ZIP must contain manifest.json and script.js")
                     else ->
-                        installFromManifestAndScript(context, pair.first, pair.second)
+                        installFromManifestAndScript(context, pkg.manifestJson, pkg.scriptJs, pkg.skillMarkdown)
                 }
             },
             onFailure = { e -> Result.Err("INSTALL_FAILED", e.message ?: e.javaClass.simpleName) }
         )
     }
 
-    private fun extractManifestAndScript(zis: ZipInputStream): Pair<String, String>? {
+    private data class SkillPackage(
+        val manifestJson: String,
+        val scriptJs: String,
+        val skillMarkdown: String?
+    )
+
+    private fun extractSkillPackage(zis: ZipInputStream): SkillPackage? {
         var manifestJson: String? = null
         var scriptJs: String? = null
+        var skillMarkdown: String? = null
         var entry = zis.nextEntry
         while (entry != null) {
             if (!entry.isDirectory) {
@@ -71,15 +78,27 @@ object SkillInstall {
                 when {
                     name.endsWith("manifest.json") -> manifestJson = content
                     name.endsWith("script.js") -> scriptJs = content
+                    name.endsWith("skill.md") -> skillMarkdown = content
                 }
             }
             zis.closeEntry()
             entry = zis.nextEntry
         }
-        return if (manifestJson != null && scriptJs != null) manifestJson to scriptJs else null
+        return if (manifestJson != null && scriptJs != null) {
+            SkillPackage(
+                manifestJson = manifestJson,
+                scriptJs = scriptJs,
+                skillMarkdown = skillMarkdown
+            )
+        } else null
     }
 
-    internal fun installFromManifestAndScript(context: Context, manifestJson: String, scriptJs: String): Result {
+    internal fun installFromManifestAndScript(
+        context: Context,
+        manifestJson: String,
+        scriptJs: String,
+        skillMarkdown: String? = null
+    ): Result {
         return when (val v = validateManifest(manifestJson)) {
             is ManifestValidation.Err -> Result.Err(v.code, v.message)
             is ManifestValidation.Ok -> {
@@ -87,6 +106,9 @@ object SkillInstall {
                 val dir = File(context.filesDir, "skills/$skillId").apply { mkdirs() }
                 File(dir, "manifest.json").writeText(manifestJson.trim())
                 File(dir, "script.js").writeText(scriptJs)
+                if (!skillMarkdown.isNullOrBlank()) {
+                    File(dir, "SKILL.md").writeText(skillMarkdown.trim())
+                }
                 InstalledSkillStore(context).addInstalled(skillId)
                 Result.Ok(skillId)
             }

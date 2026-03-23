@@ -6,6 +6,7 @@ import com.whl.quickjs.wrapper.QuickJSContext
 import com.whl.quickjs.wrapper.QuickJSException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 
@@ -55,8 +56,9 @@ object SkillQuickJsExecutor {
                 null -> "{}"
                 else -> out.toString()
             }
-            val element = json.parseToJsonElement(text.trim())
-            val obj = element.jsonObject
+            val element: JsonElement = json.parseToJsonElement(text.trim())
+            val obj = element as? JsonObject
+                ?: throw IllegalStateException("Skill run(input) must return a JSON object")
             Result.success(obj)
         } catch (e: QuickJSException) {
             Log.e(TAG, "QuickJS skill error", e)

@@ -8,6 +8,7 @@ import com.openring.gemini.model.FunctionResponse
 import com.openring.gemini.model.GenerateContentRequest
 import com.openring.gemini.model.Part
 import com.openring.settings.AiPromptStore
+import com.openring.skills.SkillInstructionCatalog
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
@@ -62,7 +63,9 @@ class ReActCoordinator(
         onTurn: (Turn) -> Unit = {}
     ): RunResult {
         val tools = ToolSchemas.buildTools(context)
-        val systemPrompt = AiPromptStore(context).getSystemPrompt().takeIf { it.isNotBlank() }
+        val baseSystemPrompt = AiPromptStore(context).getSystemPrompt().takeIf { it.isNotBlank() }
+        val skillInstructionSection = SkillInstructionCatalog.buildPromptSection(context).takeIf { it.isNotBlank() }
+        val systemPrompt = listOfNotNull(baseSystemPrompt, skillInstructionSection).joinToString("\n\n").takeIf { it.isNotBlank() }
         val systemInstruction = systemPrompt?.let { Content(role = "user", parts = listOf(Part(text = it))) }
         val coercedPrior = if (priorContents.size > 24) priorContents.takeLast(24) else priorContents
         val contents = mutableListOf<Content>().apply {

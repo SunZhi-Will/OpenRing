@@ -1,115 +1,217 @@
 [English Version Below](#english-version)
 
-# 技能、工具與提示詞 (OpenRing)
+# Skills Runtime（OpenRing）
 
-此專案透過 **工具 (Tools)**（Gemini 函式呼叫）驅動自動化，並以 **技能 (Skills)**（QuickJS 外掛）擴充可重複、確定性的邏輯。
+## 繁體中文摘要
 
-## 您目前可以管理的內容
+OpenRing 目前採用雙層 Skill 模型：
 
-### 工具 (函式呼叫)
+1. **Runtime Skill（必要）**：`manifest.json + script.js`，在裝置上由 QuickJS 執行 deterministic 邏輯。
+2. **Instruction Skill（可選）**：`SKILL.md`，提供 OpenClaw-style 指引，告訴模型何時/如何呼叫 skill。
 
-- **定義 (schemas)**: `app/src/main/java/com/openring/agent/ToolSchemas.kt`
-  - 工具名稱、描述、JSON schema 參數 (包含 `required`)
-  - 已啟用的 Skill 會額外註冊為 `skill_<manifest.name>`（與 `manifest.json` 的 `name` 一致時最清楚）
-- **實作 (執行時期行為)**: `app/src/main/java/com/openring/agent/ToolDispatcher.kt`
-  - 將工具呼叫對應至裝置動作 (無障礙服務、intents 等)
-  - `get_view_tree` / `get_cached_scan`：送進 Gemini 前可由 `ReActCoordinator` 搭配 `UiTreeCompact` **壓縮**；亦可改呼叫 **`summarize_view_tree`** 只取精簡摘要
-  - `describe_screen`：螢幕截圖 + Gemini 視覺（需 API Key）
-  - `call_skill` / `skill_*`：讀取已安裝技能目錄下的 `script.js`，於 QuickJS 執行 `run(input)`
-  - `install_skill`：從**白名單 URL** 下載 ZIP 並安裝（見 `SkillAllowedSourcesStore`）
+重點規則：
 
-### 提示詞 / 系統指令
+- 安裝 id 採 canonical `skillId`（由 `manifest.name` 正規化），工具名為 `skill_<skillId>`。
+- `call_skill.input` 若存在必須是 JSON object。
+- `run(input)` 回傳必須是 JSON object。
+- ZIP 內可選擇攜帶 `SKILL.md`；啟用後會注入 system guidance。
 
-- **協調器**: `app/src/main/java/com/openring/agent/ReActCoordinator.kt`
-  - 發送使用者訊息、工具結果；每輪會重新建立工具列表（含動態 Skill）
-- 系統提示詞可由 `AiPromptStore` / 設定畫面配置（與 Skills 分開）
+目前與 OpenClaw 尚未完全等價：
 
-## 技能 (外掛引擎) – 目前狀態
-
-| 能力 | 說明 |
-|------|------|
-| 執行 | `call_skill` 已實作：依 **已啟用** 的已安裝技能執行 `script.js`（`SkillQuickJsExecutor`） |
-| 動態工具名 | 啟用的技能若具備可讀的 `manifest.json`，會向模型暴露 `skill_<name>`，參數來自 `inputSchema` |
-| 安裝 | **本機 ZIP**（Skills 畫面「匯入 ZIP」）、**URL**（須符合白名單；AI 的 `install_skill` 亦同）、**內建** `threads`（`DefaultSkillBootstrap` 自 assets 複製） |
-| 啟用/停用 | `SkillEnabledStore`；未啟用則 `call_skill` 回傳 `SKILL_DISABLED` |
-
-### 尚未實作或僅文件層級
-
-- `manifest.json` 的 **`permissions`**：執行時未強制；QuickJS 內無對應網路/儲存等 bridge（見產品 backlog）。
-- **`outputSchema`**：安裝時可檢查型別為 JSON object，但**執行後不驗證**回傳是否符合 schema。
-
-## 「道德鎖定」(防護欄) – 雙層機制
-
-### 1) 開發時期防護欄 (Cursor rules)
-
-- `.cursor/rules/morality-guardrails.mdc`
-- `.cursor/rules/end-of-task-build.mdc`
-
-### 2) App 執行時期道德鎖定 (執行階段權限)
-
-- 儲存層: `app/src/main/java/com/openring/settings/MoralityStore.kt`
-- UI 層: `app/src/main/java/com/openring/ui/screens/MoralityEditScreen.kt`（與 Skills 清單分開）
-
-## 技能包格式與範本
-
-- 範例與格式說明：`docs/skill-templates/`
-- ZIP 根目錄應含 `manifest.json` 與 `script.js`（可與 `docs/skill-templates/README.md` 對照）
+- 尚未支援 OpenClaw 的多來源技能優先序載入。
+- 尚未支援 `metadata.openclaw.*` gating。
+- 尚未具備 ClawHub 式 registry/lifecycle。
 
 ---
 
 <a id="english-version"></a>
 
-# Skills, Tools, and Prompts (OpenRing)
+# Skills Runtime (OpenRing)
 
-This project uses **Tools** (Gemini function calling) for automation and **Skills** (QuickJS plugins) for deterministic, reusable logic.
+OpenRing uses **Gemini function calling** for tool orchestration and **QuickJS Skills** for deterministic local logic.
 
-## What you can manage today
+This document focuses on the **actual host runtime contract** implemented in:
 
-### Tools (function calling)
+- `app/src/main/java/com/openring/skills/SkillInstall.kt`
+- `app/src/main/java/com/openring/skills/SkillQuickJsExecutor.kt`
+- `app/src/main/java/com/openring/agent/ToolSchemas.kt`
+- `app/src/main/java/com/openring/agent/ToolDispatcher.kt`
 
-- **Definition (schemas)**: `app/src/main/java/com/openring/agent/ToolSchemas.kt`
-  - Tool names, descriptions, JSON schema parameters (incl. `required`)
-  - Enabled Skills also register as `skill_<manifest.name>` (keep `name` aligned with the install folder id)
-- **Implementation (runtime)**: `app/src/main/java/com/openring/agent/ToolDispatcher.kt`
-  - Maps tool calls to device actions (Accessibility, intents, etc.)
-  - `get_view_tree` / `get_cached_scan`: may be **compacted** for Gemini via `UiTreeCompact` in `ReActCoordinator`; **`summarize_view_tree`** returns a compact summary only
-  - `describe_screen`: screenshot + Gemini vision (requires API key)
-  - `call_skill` / `skill_*`: load `script.js` from installed skill folders and run `run(input)` in QuickJS
-  - `install_skill`: download a ZIP from an **allowlisted** URL (`SkillAllowedSourcesStore`)
+---
 
-### Prompt / system instruction
+## Runtime Overview
 
-- **Coordinator**: `app/src/main/java/com/openring/agent/ReActCoordinator.kt`
-  - Sends user messages and tool results; rebuilds the tool list each run (including dynamic Skills)
-- System prompt is configured via `AiPromptStore` / settings (separate from Skills)
+OpenRing now supports a **dual-layer skill model**:
 
-## Skills (plugin engine) – current status
+1. **Runtime Skill (required)**: `manifest.json + script.js` for deterministic execution in QuickJS.
+2. **Instruction Skill (optional)**: `SKILL.md` for OpenClaw-style model guidance about when/how to use the skill.
 
-| Capability | Notes |
-|------------|--------|
-| Execution | `call_skill` is implemented for **enabled** installed skills via `script.js` (`SkillQuickJsExecutor`) |
-| Dynamic tool names | Enabled skills with a readable `manifest.json` expose `skill_<name>` with parameters from `inputSchema` |
-| Installation | **Local ZIP** (Skills screen), **URL** (must match allowlist; same for AI `install_skill`), **bundled** `threads` (copied from assets in `DefaultSkillBootstrap`) |
-| Enable/disable | `SkillEnabledStore`; disabled skills return `SKILL_DISABLED` |
+### Install paths
 
-### Not implemented or documentation-only
+Skills can be installed from:
 
-- **`permissions` in manifest**: not enforced at runtime; no network/storage bridge inside QuickJS yet (see product backlog).
-- **`outputSchema`**: type shape may be validated on install, but return values are **not** validated after execution.
+1. Local ZIP import in `SkillsScreen`
+2. URL install (`install_skill` tool or Skills UI), only when URL matches `SkillAllowedSourcesStore` allowlist
+3. Built-in template catalog metadata in `SkillsScreen` (download-on-install; scripts are fetched only after user clicks install)
 
-## “Morality Lock” (guardrails) – two layers
+### Install identity (`skillId`) is canonical
 
-### 1) Development-time guardrails (Cursor rules)
+At install time, manifest `name` is normalized to the canonical installed id:
 
-- `.cursor/rules/morality-guardrails.mdc`
-- `.cursor/rules/end-of-task-build.mdc`
+- keep only `[A-Za-z0-9_]`
+- if empty after normalization, fallback to `skill`
 
-### 2) App-time Morality Lock
+That canonical id becomes:
 
-- Store: `app/src/main/java/com/openring/settings/MoralityStore.kt`
-- UI: `app/src/main/java/com/openring/ui/screens/MoralityEditScreen.kt` (separate from the Skills list)
+- install folder name under `filesDir/skills/<skillId>`
+- id in `InstalledSkillStore` and `SkillEnabledStore`
+- dynamic tool name suffix (`skill_<skillId>`)
+- required `call_skill.skill` value
 
-## Skill package format and templates
+### Dynamic tool registration
 
-- Examples: `docs/skill-templates/`
-- ZIP root should contain `manifest.json` and `script.js` (see `docs/skill-templates/README.md`)
+Enabled skills with a readable `manifest.json` are exposed to Gemini as dynamic tools:
+
+- name: `skill_<skillId>`
+- description: `manifest.description` (fallback: `Skill: <manifestName>`)
+- parameters: `manifest.inputSchema` (fallback: empty object schema)
+
+### Execution contract
+
+Execution path:
+
+- `call_skill` (explicit id) OR `skill_<skillId>` (dynamic tool)
+- host resolves installed/enabled/canonical skill
+- host reads `script.js`
+- QuickJS evaluates `run(input)`
+
+Hard requirements:
+
+- `script.js` must define `run(input)` (sync function)
+- `call_skill.input` must be a JSON object when provided
+- `run(input)` return value must serialize and parse into a **JSON object**
+
+---
+
+## Manifest Contract (`manifest.json`)
+
+### Required and validated
+
+- `name`: required, non-empty string
+
+### Optional but type-checked on install
+
+- `inputSchema`: if present, must be a JSON object
+- `outputSchema`: if present, must be a JSON object
+
+### Optional, currently documentation-only
+
+- `permissions`: stored as-is; not enforced in QuickJS runtime today
+
+### Execution-time behavior notes
+
+- `inputSchema` is used for Gemini function parameters on dynamic `skill_<skillId>` tools.
+- `outputSchema` is not schema-validated against runtime output yet.
+- Runtime only enforces that output is a JSON object shape.
+
+---
+
+## ZIP Packaging Rules
+
+Current installer scans all ZIP entries and accepts package if it finds:
+
+- one `manifest.json` entry
+- one `script.js` entry
+- optional `SKILL.md` entry
+
+The files do **not** need to be at ZIP root for current installer logic.
+
+If `SKILL.md` exists, it is installed under the skill directory and used as prompt guidance.
+
+---
+
+## OpenClaw-Style `SKILL.md` Compatibility
+
+### What is supported
+
+- Optional `SKILL.md` in skill ZIP.
+- For enabled skills, OpenRing reads `SKILL.md`, strips YAML frontmatter, and injects the markdown body into system guidance.
+- Guidance is surfaced as:
+  - `### skill_<skillId> (<manifestName>)`
+  - followed by clipped instruction body.
+
+### What is not yet fully equivalent to OpenClaw
+
+- No multi-location precedence loader (`/skills`, `~/.openclaw/skills`, bundled) yet.
+- No load-time gating from `metadata.openclaw.*` fields yet.
+- No standalone skill registry/installer lifecycle like ClawHub.
+
+This compatibility layer is designed to reduce skill author friction while keeping OpenRing’s on-device QuickJS runtime model.
+
+---
+
+## Tool-Level Contracts
+
+### `call_skill`
+
+Arguments:
+
+```json
+{
+  "skill": "threads",
+  "input": {
+    "text": "hello"
+  }
+}
+```
+
+Rules:
+
+- `skill` is required
+- `input` is optional; defaults to `{}`
+- if `input` exists and is not a JSON object, returns `INVALID_ARGUMENT`
+
+### `skill_<skillId>` dynamic tool
+
+Rules:
+
+- Arguments are passed directly as skill `input`
+- Tool name must match the installed canonical `skillId`
+
+---
+
+## Common Error Codes (Skills)
+
+Install path:
+
+- `URL_NOT_ALLOWED`
+- `INVALID_PACKAGE`
+- `INVALID_MANIFEST`
+- `INSTALL_FAILED`
+
+Execution path:
+
+- `SKILL_NOT_INSTALLED`
+- `SKILL_DISABLED`
+- `SKILL_NOT_FOUND`
+- `INVALID_SKILL`
+- `READ_FAILED`
+- `SKILL_RUNTIME_ERROR`
+- `INVALID_ARGUMENT`
+
+---
+
+## Security and Guardrails
+
+- QuickJS Skill runtime is pure JS sandbox (no DOM/Node APIs).
+- `permissions` in manifest is not enforced yet.
+- URL install is restricted by user-managed allowlist.
+- Skill enable/disable is user-controlled through `SkillEnabledStore` and the Skills UI.
+
+---
+
+## Related Docs
+
+- `docs/skill-templates/README.md` for authoring templates and examples
+- `docs/skill-templates/duolingo_word_match_guard/` for a deterministic external skill example targeting Duolingo word-match tasks
+- `docs/technical/AI_AGENT.md` for end-to-end tool orchestration context

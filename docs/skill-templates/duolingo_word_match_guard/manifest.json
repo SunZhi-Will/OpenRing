@@ -1,0 +1,36 @@
+{
+  "name": "duolingo_word_match_guard",
+  "description": "Deterministically resolve a Duolingo word-match target and block ambiguous picks.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "target": {
+        "type": "string",
+        "description": "The target token that must be selected."
+      },
+      "choices": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Visible clickable labels from current Duolingo word-match grid."
+      },
+      "allowContainsFallback": {
+        "type": "boolean",
+        "description": "If true, allow strict contains fallback when exact normalized match is not found."
+      }
+    },
+    "required": ["target", "choices"]
+  },
+  "outputSchema": {
+    "type": "object",
+    "properties": {
+      "status": { "type": "string" },
+      "selected": { "type": "string" },
+      "confidence": { "type": "number" },
+      "reason": { "type": "string" },
+      "matchedIndices": {
+        "type": "array",
+        "items": { "type": "number" }
+      }
+    }
+  }
+}

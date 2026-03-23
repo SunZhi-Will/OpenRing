@@ -74,15 +74,16 @@ object ToolSchemas {
                     val manifestText = manifestFile.readText()
                     val manifestObj = json.parseToJsonElement(manifestText).jsonObject
 
-                    val name = manifestObj["name"]?.jsonPrimitive?.content ?: skillId
-                    val description = manifestObj["description"]?.jsonPrimitive?.content ?: "Skill: $name"
+                    val manifestName = manifestObj["name"]?.jsonPrimitive?.content ?: skillId
+                    val description = manifestObj["description"]?.jsonPrimitive?.content ?: "Skill: $manifestName"
                     val inputSchema = manifestObj["inputSchema"]?.jsonObject ?: buildJsonObject {
                         put("type", "object")
                         putJsonObject("properties") {}
                     }
 
-                    // To avoid collision and uniquely identify dynamic skills in ToolDispatcher
-                    val toolName = "skill_$name"
+                    // Dynamic tool names are bound to installed skillId, which is canonicalized by SkillInstall.
+                    // This avoids runtime mismatch when manifest.name contains chars trimmed during install.
+                    val toolName = "skill_$skillId"
 
                     declarations.add(
                         FunctionDeclaration(

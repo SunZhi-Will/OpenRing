@@ -24,7 +24,6 @@ import com.openring.skills.SkillQuickJsExecutor
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -65,7 +64,11 @@ class ToolDispatcher(
             name == "call_skill" -> {
                 val skillId = args["skill"]?.jsonPrimitive?.content
                     ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing skill")
-                val input = args["input"]?.jsonObject ?: buildJsonObject { }
+                val inputElement = args["input"]
+                if (inputElement != null && inputElement !is JsonObject) {
+                    return ToolResult(false, "INVALID_ARGUMENT", "input must be a JSON object")
+                }
+                val input = inputElement ?: buildJsonObject { }
                 return executeSkill(skillId, input)
             }
 
