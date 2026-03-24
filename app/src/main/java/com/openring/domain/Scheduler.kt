@@ -33,7 +33,8 @@ class Scheduler(private val context: Context) {
     private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     companion object {
-        private const val WORK_TAG = "openring_scheduled_script"
+        private const val WORK_TAG_SCHEDULED = "openring_scheduled_script"
+        private const val WORK_TAG_RUN_ONCE = "openring_run_once_script"
         private const val ALARM_REQ_CODE_BASE = 31000
     }
 
@@ -113,7 +114,7 @@ class Scheduler(private val context: Context) {
     fun runOnce(scriptId: String) {
         val request = OneTimeWorkRequestBuilder<ScriptScheduledWorker>()
             .setInputData(androidx.work.workDataOf("scriptId" to scriptId))
-            .addTag(WORK_TAG)
+            .addTag(WORK_TAG_RUN_ONCE)
             .build()
         WorkManager.getInstance(context).enqueue(request)
     }
@@ -123,7 +124,7 @@ class Scheduler(private val context: Context) {
         return OneTimeWorkRequestBuilder<ScriptScheduledWorker>()
             .setInputData(androidx.work.workDataOf("scriptId" to scriptId))
             .setInitialDelay(delay, TimeUnit.MILLISECONDS)
-            .addTag(WORK_TAG)
+            .addTag(WORK_TAG_SCHEDULED)
             .build()
     }
 
@@ -132,7 +133,7 @@ class Scheduler(private val context: Context) {
         return OneTimeWorkRequestBuilder<ScriptScheduledWorker>()
             .setInputData(androidx.work.workDataOf("scriptId" to scriptId))
             .setInitialDelay(delay, TimeUnit.MILLISECONDS)
-            .addTag(WORK_TAG)
+            .addTag(WORK_TAG_SCHEDULED)
             .build()
     }
 
@@ -141,7 +142,7 @@ class Scheduler(private val context: Context) {
         return OneTimeWorkRequestBuilder<ScriptScheduledWorker>()
             .setInputData(androidx.work.workDataOf("scriptId" to scriptId))
             .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
-            .addTag(WORK_TAG)
+            .addTag(WORK_TAG_SCHEDULED)
             .build()
     }
 
@@ -246,6 +247,10 @@ class Scheduler(private val context: Context) {
                 ensureAlwaysOnServiceRunning()
             } else {
                 context.stopService(serviceIntent)
+            }
+            if (enabledCount == 0) {
+                // 全部排程關閉時，清掉殘留鏈式排程 Worker，避免「看似無排程仍觸發」。
+                WorkManager.getInstance(context).cancelAllWorkByTag(WORK_TAG_SCHEDULED)
             }
             SchedulerStatusNotification.update(
                 context = context,

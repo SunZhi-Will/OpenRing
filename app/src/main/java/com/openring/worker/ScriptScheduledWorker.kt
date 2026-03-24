@@ -33,7 +33,8 @@ class ScriptScheduledWorker(
         }
 
         val executor = ScriptExecutor(applicationContext, db.executionHistoryDao())
-        val result = executor.execute(script, restoreOpenRingOnFinish = true)
+        // 背景排程執行完成後不主動拉回 OpenRing，避免打斷使用者目前前景 App。
+        val result = executor.execute(script, restoreOpenRingOnFinish = false)
 
         return when (result) {
             is ScriptExecutor.ExecutionResult.Success -> Result.success()
