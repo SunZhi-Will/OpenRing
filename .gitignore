@@ -34,3 +34,7 @@ Icon
 *.p12
 *.env
 *.env.*
+.tmp-db/
+*.db
+*.db-shm
+*.db-wal
