@@ -17,5 +17,10 @@ data class Schedule(
     val mode: String = "battery",
     val hour: Int = 9,
     val minute: Int = 0,
-    val minutes: Int = 30  // for interval type
+    val minutes: Int = 30, // for interval type
+    /**
+     * 建立排程時的聊天工作階段；排程觸發後 [ai_action] 結果寫回此對話（若仍存在）。
+     * 舊資料無此欄位時為 null，則退回「目前作用中」工作階段。
+     */
+    val replyChatSessionId: String? = null
 )

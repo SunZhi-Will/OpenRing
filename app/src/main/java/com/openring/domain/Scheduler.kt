@@ -11,8 +11,17 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.openring.data.model.Schedule
 import com.openring.core.AlwaysOnSchedulerService
+import com.openring.core.AlwaysOnRunGate
+import com.openring.data.ScriptStore
+import com.openring.data.db.OpenRingDatabase
 import com.openring.receiver.ScriptAlarmReceiver
+import com.openring.core.BackgroundWorkTracker
+import com.openring.ui.notifications.SchedulerStatusNotification
 import com.openring.worker.ScriptScheduledWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
@@ -21,6 +30,7 @@ import java.util.concurrent.TimeUnit
  * US-2.3: 支援每日、每小時、自訂時間
  */
 class Scheduler(private val context: Context) {
+    private val ioScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     companion object {
         private const val WORK_TAG = "openring_scheduled_script"
@@ -39,6 +49,7 @@ class Scheduler(private val context: Context) {
             "always_on" -> ensureAlwaysOnServiceRunning()
             else -> scheduleBattery(scriptId, schedule)
         }
+        refreshAlwaysOnServiceState()
     }
 
     private fun scheduleBattery(scriptId: String, schedule: Schedule) {
@@ -93,6 +104,7 @@ class Scheduler(private val context: Context) {
     fun cancelScript(scriptId: String) {
         WorkManager.getInstance(context).cancelUniqueWork(workName(scriptId))
         context.getSystemService(AlarmManager::class.java).cancel(alarmPendingIntent(scriptId))
+        refreshAlwaysOnServiceState()
     }
 
     /**
@@ -205,6 +217,7 @@ class Scheduler(private val context: Context) {
     private fun workName(scriptId: String) = "script_$scriptId"
 
     private fun ensureAlwaysOnServiceRunning() {
+        if (AlwaysOnRunGate.isSuspended(context)) return
         val intent = Intent(context, AlwaysOnSchedulerService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent)
@@ -212,4 +225,43 @@ class Scheduler(private val context: Context) {
             context.startService(intent)
         }
     }
+
+    fun refreshAlwaysOnServiceState() {
+        ioScope.launch {
+            val scriptDao = OpenRingDatabase.getDatabase(context).scriptDao()
+            val scripts = runCatching { scriptDao.getAllScriptsOnce() }.getOrDefault(emptyList())
+            val store = ScriptStore(scriptDao)
+            var enabledCount = 0
+            var hasAlwaysOnEnabled = false
+            for (script in scripts) {
+                val schedule = store.parseSchedule(script.scheduleJson)
+                if (schedule.enabled && schedule.type != "disabled") {
+                    enabledCount += 1
+                    if (schedule.mode == "always_on") hasAlwaysOnEnabled = true
+                }
+            }
+            val suspended = AlwaysOnRunGate.isSuspended(context)
+            val serviceIntent = Intent(context, AlwaysOnSchedulerService::class.java)
+            if (hasAlwaysOnEnabled && !suspended) {
+                ensureAlwaysOnServiceRunning()
+            } else {
+                context.stopService(serviceIntent)
+            }
+            SchedulerStatusNotification.update(
+                context = context,
+                enabledScheduleCount = enabledCount,
+                hasAlwaysOnEnabled = hasAlwaysOnEnabled,
+                alwaysOnSuspended = suspended,
+                backgroundWorkCount = BackgroundWorkTracker.currentCount()
+            )
+        }
+    }
+}
+
+/**
+ * Recompute always-on foreground service and unified status notification.
+ * Called from [com.openring.core.BackgroundWorkTracker] on acquire/release.
+ */
+fun refreshOpenRingRuntimeStatus(context: Context) {
+    Scheduler(context.applicationContext).refreshAlwaysOnServiceState()
 }

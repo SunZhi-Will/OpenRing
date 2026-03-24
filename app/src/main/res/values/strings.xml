@@ -1,5 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">OpenRing</string>
-    <string name="accessibility_service_description">OpenRing 需要無障礙權限以讀取畫面並執行自動化操作</string>
+    <string name="accessibility_service_description">OpenRing requires accessibility permission to read the screen and run automations.</string>
+    <string name="back">Back</string>
+    <string name="ai_settings_title">AI Settings</string>
+    <string name="settings_language_title">Language</string>
+    <string name="settings_language_subtitle">Follow Android system language automatically</string>
+    <string name="language_settings_title">Language Settings</string>
+    <string name="language_settings_follow_system">OpenRing currently follows your Android system language.</string>
+    <string name="language_settings_current_locale">Current language: %1$s</string>
+    <string name="language_settings_open_system">Open system language settings</string>
+    <string name="language_settings_open_system_failed">Unable to open system language settings</string>
+    <string name="menu_permissions_accessibility">Permissions &amp; Accessibility</string>
+    <string name="menu_workflows">Schedules / Workflows</string>
+    <string name="menu_execution_log">Execution Log</string>
+    <string name="menu_skills_center">Skills Center</string>
+    <string name="menu_ai_settings">AI Settings</string>
+    <string name="menu_settings">Settings</string>
+    <string name="menu_models">Models</string>
+    <string name="go_to_models_page">Go to Models page</string>
+    <string name="settings_section_general">General</string>
+    <string name="settings_section_models">Models</string>
+    <string name="settings_models_reorder_hint">Long press and drag cards to reorder model priority.</string>
+    <string name="notification_always_on_running">Resident schedules active · stop until next app launch</string>
+    <string name="notification_action_stop_resident">Stop resident</string>
+    <string name="notification_ai_running">AI run in progress</string>
+    <string name="notification_ai_running_hint">Open app or stop this run</string>
+    <string name="notification_action_stop_run">Stop</string>
+    <string name="notification_overlay_running">Floating indicator · tap parrot to stop AI</string>
+    <string name="permission_notifications_title">Notifications</string>
+    <string name="permission_notifications_granted_summary">Allowed: schedule status, AI run, and resident schedule alerts can appear.</string>
+    <string name="permission_notifications_denied_summary">Not allowed: OpenRing cannot show status or control notifications on Android 13+. Tap Allow to enable.</string>
+    <string name="permission_notifications_action_allow">Allow notifications</string>
+    <string name="permission_notifications_action_settings">Open notification settings</string>
+    <string name="permission_notifications_status_on">Notification permission: allowed</string>
+    <string name="permission_notifications_status_off">Notification permission: not allowed</string>
+    <string name="permission_notifications_legacy_summary">This Android version does not require runtime notification permission; if notifications are still missing, check whether app notifications are disabled in system settings.</string>
+    <string name="permission_notifications_status_legacy">Notification permission: runtime grant not required on this Android version</string>
 </resources>

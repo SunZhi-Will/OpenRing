@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OpenRing</string>
+    <string name="accessibility_service_description">OpenRing 需要無障礙權限以讀取畫面並執行自動化操作</string>
+    <string name="back">返回</string>
+    <string name="ai_settings_title">AI 設定</string>
+    <string name="settings_language_title">語言</string>
+    <string name="settings_language_subtitle">自動跟隨 Android 系統語言</string>
+    <string name="language_settings_title">語言設定</string>
+    <string name="language_settings_follow_system">OpenRing 目前會自動跟隨你的 Android 系統語言。</string>
+    <string name="language_settings_current_locale">目前語言：%1$s</string>
+    <string name="language_settings_open_system">開啟系統語言設定</string>
+    <string name="language_settings_open_system_failed">無法開啟系統語言設定</string>
+    <string name="menu_permissions_accessibility">權限與無障礙</string>
+    <string name="menu_workflows">排程 / 工作流</string>
+    <string name="menu_execution_log">執行 Log</string>
+    <string name="menu_skills_center">技能中心</string>
+    <string name="menu_ai_settings">AI 設定</string>
+    <string name="menu_settings">設定</string>
+    <string name="menu_models">模型</string>
+    <string name="go_to_models_page">前往模型頁</string>
+    <string name="settings_section_general">一般</string>
+    <string name="settings_section_models">模型</string>
+    <string name="settings_models_reorder_hint">長按卡片後上下拖曳可調整模型優先順序。</string>
+    <string name="notification_always_on_running">常駐排程運行中 · 終止後待下次開啟 App 再恢復</string>
+    <string name="notification_action_stop_resident">終止常駐</string>
+    <string name="notification_ai_running">AI 執行中</string>
+    <string name="notification_ai_running_hint">開啟 App 或停止本次執行</string>
+    <string name="notification_action_stop_run">停止</string>
+    <string name="notification_overlay_running">懸浮提示 · 點鸚鵡可停止 AI</string>
+    <string name="permission_notifications_title">通知</string>
+    <string name="permission_notifications_granted_summary">已允許：排程狀態、AI 執行與常駐排程等通知可正常顯示。</string>
+    <string name="permission_notifications_denied_summary">未允許：Android 13 起若未授權，OpenRing 無法顯示狀態與操作通知。請點「允許通知」。</string>
+    <string name="permission_notifications_action_allow">允許通知</string>
+    <string name="permission_notifications_action_settings">開啟通知設定</string>
+    <string name="permission_notifications_status_on">通知權限：已允許</string>
+    <string name="permission_notifications_status_off">通知權限：未允許</string>
+    <string name="permission_notifications_legacy_summary">此 Android 版本不需要額外授予通知執行期權限；若仍看不到通知，可到系統通知設定檢查是否被關閉。</string>
+    <string name="permission_notifications_status_legacy">通知權限：此版本不需執行期授權</string>
+</resources>

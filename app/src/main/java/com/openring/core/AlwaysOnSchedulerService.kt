@@ -10,7 +10,10 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.openring.R
 import com.openring.ui.MainActivity
+import com.openring.ui.notifications.OpenRingNotificationStyle
+import com.openring.receiver.AlwaysOnSchedulerControlReceiver
 import com.openring.data.ScriptStore
 import com.openring.data.db.OpenRingDatabase
 import com.openring.data.model.Schedule
@@ -35,8 +38,9 @@ import java.util.concurrent.TimeUnit
 class AlwaysOnSchedulerService : Service() {
 
     companion object {
-        const val CHANNEL_ID = "openring_always_on_scheduler"
+        const val CHANNEL_ID = "openring_always_on_scheduler_v2"
         private const val NOTIFICATION_ID = 1101
+        const val ACTION_TERMINATE_ALWAYS_ON = "com.openring.action.TERMINATE_ALWAYS_ON"
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -51,6 +55,10 @@ class AlwaysOnSchedulerService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (AlwaysOnRunGate.isSuspended(this)) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         startForeground(NOTIFICATION_ID, createNotification())
         if (loopJob == null) {
             loopJob = scope.launch { loop() }
@@ -71,7 +79,7 @@ class AlwaysOnSchedulerService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "OpenRing 常駐排程",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply { setShowBadge(false) }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
@@ -83,12 +91,29 @@ class AlwaysOnSchedulerService : Service() {
             Intent(this, MainActivity::class.java).apply { setPackage(packageName) },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("OpenRing 常駐排程中")
-            .setContentText("為了更準時執行腳本，系統會顯示常駐通知")
-            .setSmallIcon(android.R.drawable.ic_popup_sync)
+        val terminateIntent = PendingIntent.getBroadcast(
+            this,
+            1102,
+            Intent(this, AlwaysOnSchedulerControlReceiver::class.java).apply {
+                setPackage(packageName)
+                action = ACTION_TERMINATE_ALWAYS_ON
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return OpenRingNotificationStyle.apply(
+            NotificationCompat.Builder(this, CHANNEL_ID),
+            this
+        )
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(getString(R.string.notification_always_on_running))
             .setContentIntent(pendingIntent)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .addAction(
+                R.drawable.ic_stat_stop,
+                getString(R.string.notification_action_stop_resident),
+                terminateIntent
+            )
             .build()
     }
 

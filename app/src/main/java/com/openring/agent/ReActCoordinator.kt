@@ -8,6 +8,7 @@ import com.openring.gemini.model.FunctionResponse
 import com.openring.gemini.model.GenerateContentRequest
 import com.openring.gemini.model.Part
 import com.openring.settings.AiPromptStore
+import com.openring.skills.SkillEnabledStore
 import com.openring.skills.SkillInstructionCatalog
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -71,6 +72,30 @@ class ReActCoordinator(
         val contents = mutableListOf<Content>().apply {
             addAll(coercedPrior)
             add(Content(role = "user", parts = listOf(Part(text = userText))))
+            if (isOfficialSkillRequest(userText)) {
+                add(
+                    Content(
+                        role = "user",
+                        parts = listOf(
+                            Part(
+                                text = "For official skill installs, always call install_official_skill with a valid templateId from the enum. Never construct or guess custom URLs."
+                            )
+                        )
+                    )
+                )
+            }
+            if (isDuolingoRequest(userText) && SkillEnabledStore(context).isEnabled("duolingo_word_match_guard")) {
+                add(
+                    Content(
+                        role = "user",
+                        parts = listOf(
+                            Part(
+                                text = "For Duolingo word-match tasks, prioritize skill_duolingo_word_match_guard (or call_skill with duolingo_word_match_guard) for deterministic target selection before any click."
+                            )
+                        )
+                    )
+                )
+            }
         }
         val turns = mutableListOf(Turn(role = "user", text = userText))
         Log.d(
@@ -112,6 +137,7 @@ class ReActCoordinator(
         var lastSentText: String? = null
         val standbySeenKeys = mutableSetOf<String>()
         val sentHistory = ArrayDeque<String>()
+        var visionUnavailable = false
 
         var rounds = 0
         while (rounds < roundLimit) {
@@ -282,6 +308,12 @@ class ReActCoordinator(
                         code = "FLOW_GUARD",
                         message = "Text already entered. Click send/search before entering more text."
                     )
+                } else if (call.name == "describe_screen" && visionUnavailable) {
+                    ToolDispatcher.ToolResult(
+                        ok = false,
+                        code = "VISION_UNAVAILABLE",
+                        message = "describe_screen is unavailable on this device/session. Use summarize_view_tree or get_view_tree instead."
+                    )
                 } else if (waitingIncomingReply && (call.name in inputTools || call.name == "click_send_button")) {
                     ToolDispatcher.ToolResult(
                         ok = false,
@@ -334,6 +366,9 @@ class ReActCoordinator(
                     consecutiveInputAttempts += 1
                 } else if (toolResultForModel.ok) {
                     consecutiveInputAttempts = 0
+                }
+                if (call.name == "describe_screen" && !toolResultForModel.ok && toolResultForModel.code == "SCREENSHOT_UNAVAILABLE") {
+                    visionUnavailable = true
                 }
 
                 if (toolResultForModel.ok && call.name == "click_send_button") {
@@ -473,6 +508,17 @@ class ReActCoordinator(
             }
             else -> "<complex>"
         }
+    }
+
+    private fun isDuolingoRequest(text: String): Boolean {
+        val t = text.lowercase()
+        return t.contains("duolingo") || t.contains("多鄰國")
+    }
+
+    private fun isOfficialSkillRequest(text: String): Boolean {
+        val t = text.lowercase()
+        return (t.contains("official") || t.contains("官方")) &&
+            (t.contains("skill") || t.contains("模板") || t.contains("外掛"))
     }
 
 }

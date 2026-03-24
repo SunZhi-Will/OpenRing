@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Accent for notification tint (matches in-app status lamp) -->
+    <color name="notification_brand">#26D96A</color>
+</resources>

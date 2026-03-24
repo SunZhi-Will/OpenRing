@@ -7,10 +7,16 @@ import android.provider.Settings
 import android.text.format.DateFormat
 import android.util.Log
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +38,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -69,22 +76,32 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import android.widget.Toast
+import com.openring.R
 import com.openring.agent.ActiveChatContext
 import com.openring.agent.ChatLogEntry
 import com.openring.agent.ExecutionLogStore
@@ -92,9 +109,13 @@ import com.openring.agent.LocalReActCoordinator
 import com.openring.agent.ReActCoordinator
 import com.openring.agent.RunCancellationRegistry
 import com.openring.agent.ToolSchemas
+import com.openring.core.BackgroundWorkTracker
+import com.openring.core.ChatReloadBus
 import com.openring.core.OverlayService
 import com.openring.data.ChatRepository
 import com.openring.data.MemoryRepository
+import com.openring.data.ScriptStore
+import com.openring.data.db.OpenRingDatabase
 import com.openring.data.model.ChatMessageEntity
 import com.openring.data.model.ChatSession
 import com.openring.localmodel.LocalModelCatalog
@@ -116,6 +137,32 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.Date
 import java.util.UUID
+
+private suspend fun reloadChatScreenState(
+    chatRepository: ChatRepository,
+    context: android.content.Context,
+    applyLoaded: (
+        sessionId: String,
+        rows: List<ChatMessageEntity>,
+        logs: List<ChatLogEntry>,
+        hasEnabledSchedule: Boolean
+    ) -> Unit
+) {
+    withContext(Dispatchers.IO) {
+        val sid = chatRepository.getOrCreateActiveSessionId()
+        val rows = chatRepository.getMessages(sid)
+        val logs = chatRepository.loadExecutionLog(sid)
+        val scriptDao = OpenRingDatabase.getDatabase(context).scriptDao()
+        val scriptStore = ScriptStore(scriptDao)
+        val hasAnyEnabledSchedule = scriptDao.getAllScriptsOnce().any { script ->
+            val schedule = scriptStore.parseSchedule(script.scheduleJson)
+            schedule.enabled && schedule.type != "disabled"
+        }
+        withContext(Dispatchers.Main) {
+            applyLoaded(sid, rows, logs, hasAnyEnabledSchedule)
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -173,15 +220,45 @@ fun ChatScreen(
     var sessionsForPicker by remember { mutableStateOf<List<ChatSession>>(emptyList()) }
     var sessionPendingDelete by remember { mutableStateOf<ChatSession?>(null) }
     val sessionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var running by remember { mutableStateOf(false) }
+    var runningSessionId by remember { mutableStateOf<String?>(null) }
+    var overlayPermissionDialogText by remember { mutableStateOf<String?>(null) }
+    var processingText by remember { mutableStateOf("正在處理中…") }
+    var hasEnabledSchedule by remember { mutableStateOf(false) }
+    val backgroundWorkCount by BackgroundWorkTracker.activeCount.collectAsState(initial = 0)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val runningState = rememberUpdatedState(running)
 
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            val sid = chatRepository.getOrCreateActiveSessionId()
-            val rows = chatRepository.getMessages(sid)
-            val logs = chatRepository.loadExecutionLog(sid)
-            withContext(Dispatchers.Main) {
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            if (!runningState.value) {
+                reloadChatScreenState(chatRepository, context) { sid, rows, logs, hasSched ->
+                    activeChatSessionId = sid
+                    messages.clear()
+                    hasEnabledSchedule = hasSched
+                    for (m in rows) {
+                        messages.add(
+                            ChatMessage(
+                                id = m.id,
+                                role = m.role,
+                                text = m.body,
+                                createdAtMs = m.createdAtMs
+                            )
+                        )
+                    }
+                    ExecutionLogStore.replaceAll(logs)
+                }
+            }
+        }
+    }
+
+    var prevBackgroundWorkCount by remember { mutableIntStateOf(0) }
+    LaunchedEffect(backgroundWorkCount) {
+        if (prevBackgroundWorkCount > 0 && backgroundWorkCount == 0 && !runningState.value) {
+            reloadChatScreenState(chatRepository, context) { sid, rows, logs, hasSched ->
                 activeChatSessionId = sid
                 messages.clear()
+                hasEnabledSchedule = hasSched
                 for (m in rows) {
                     messages.add(
                         ChatMessage(
@@ -195,6 +272,30 @@ fun ChatScreen(
                 ExecutionLogStore.replaceAll(logs)
             }
         }
+        prevBackgroundWorkCount = backgroundWorkCount
+    }
+
+    LaunchedEffect(Unit) {
+        ChatReloadBus.events.collect {
+            if (!runningState.value) {
+                reloadChatScreenState(chatRepository, context) { sid, rows, logs, hasSched ->
+                    activeChatSessionId = sid
+                    messages.clear()
+                    hasEnabledSchedule = hasSched
+                    for (m in rows) {
+                        messages.add(
+                            ChatMessage(
+                                id = m.id,
+                                role = m.role,
+                                text = m.body,
+                                createdAtMs = m.createdAtMs
+                            )
+                        )
+                    }
+                    ExecutionLogStore.replaceAll(logs)
+                }
+            }
+        }
     }
 
     LaunchedEffect(sessionSheetOpen) {
@@ -204,11 +305,6 @@ fun ChatScreen(
             }
         }
     }
-
-    var running by remember { mutableStateOf(false) }
-    var runningSessionId by remember { mutableStateOf<String?>(null) }
-    var overlayPermissionDialogText by remember { mutableStateOf<String?>(null) }
-    var processingText by remember { mutableStateOf("正在處理中…") }
 
     fun sanitizeJsonForLog(toolName: String, json: JsonObject): JsonObject {
         if (toolName == "describe_screen") {
@@ -320,6 +416,7 @@ fun ChatScreen(
             }
         }
         scope.launch {
+            BackgroundWorkTracker.acquire(context)
             try {
                 val chatSid = withContext(Dispatchers.IO) {
                     chatRepository.getOrCreateActiveSessionId()
@@ -590,6 +687,7 @@ fun ChatScreen(
                 RunCancellationRegistry.clear(runSessionId)
                 runningSessionId = null
                 running = false
+                BackgroundWorkTracker.release(context)
             }
         }
     }
@@ -614,13 +712,35 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        "OpenRing",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "OpenRing",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.widthIn(min = Spacing.sm))
+                        val active = running || backgroundWorkCount > 0 || hasEnabledSchedule
+                        val pulseTransition = rememberInfiniteTransition(label = "always_on_pulse")
+                        val pulseScale by pulseTransition.animateFloat(
+                            initialValue = 0.95f,
+                            targetValue = 1.15f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(durationMillis = 1200),
+                                repeatMode = RepeatMode.Reverse
+                            ),
+                            label = "always_on_scale"
+                        )
+                        val lampColor = if (active) Color(0xFF26D96A) else MaterialTheme.colorScheme.outlineVariant
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .scale(if (active) pulseScale else 1f)
+                                .clip(CircleShape)
+                                .background(lampColor)
+                        )
+                    }
                 },
                 actions = {
                     IconButton(
@@ -662,7 +782,7 @@ fun ChatScreen(
                             onDismissRequest = { moreMenuExpanded = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("權限與無障礙") },
+                                text = { Text(stringResource(R.string.menu_permissions_accessibility)) },
                                 onClick = {
                                     moreMenuExpanded = false
                                     onNavigateToPermissions()
@@ -672,7 +792,7 @@ fun ChatScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("排程 / 工作流") },
+                                text = { Text(stringResource(R.string.menu_workflows)) },
                                 onClick = {
                                     moreMenuExpanded = false
                                     onNavigateToWorkflows()
@@ -682,7 +802,7 @@ fun ChatScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("執行 Log") },
+                                text = { Text(stringResource(R.string.menu_execution_log)) },
                                 onClick = {
                                     moreMenuExpanded = false
                                     onNavigateToExecutionLog()
@@ -692,7 +812,7 @@ fun ChatScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("技能中心") },
+                                text = { Text(stringResource(R.string.menu_ai_settings)) },
                                 onClick = {
                                     moreMenuExpanded = false
                                     onNavigateToSkills()
@@ -702,7 +822,7 @@ fun ChatScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("模型") },
+                                text = { Text(stringResource(R.string.menu_settings)) },
                                 onClick = {
                                     moreMenuExpanded = false
                                     onNavigateToSettings()
@@ -761,7 +881,7 @@ fun ChatScreen(
                             style = MaterialTheme.typography.bodySmall
                         )
                         TextButton(onClick = onNavigateToSettings) {
-                            Text("前往模型頁")
+                            Text(stringResource(R.string.go_to_models_page))
                         }
                     }
                 }
@@ -1409,20 +1529,17 @@ private fun MessageRow(
 @Composable
 private fun AssistantAvatar() {
     Surface(
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.primary
+        shape = CircleShape,
+        tonalElevation = 1.dp,
+        shadowElevation = 0.dp
     ) {
-        Box(
-            modifier = Modifier.size(32.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "OR",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
+        Image(
+            painter = painterResource(id = R.drawable.ic_launcher_foreground_art),
+            contentDescription = "OpenRing logo",
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+        )
     }
 }
 

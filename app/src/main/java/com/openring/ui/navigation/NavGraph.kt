@@ -19,6 +19,7 @@ import com.openring.ui.screens.SkillsScreen
 import com.openring.ui.screens.SystemPromptEditScreen
 import com.openring.ui.screens.TextSettingEditorScreen
 import com.openring.ui.screens.PermissionsScreen
+import com.openring.ui.screens.LanguageSettingsScreen
 
 sealed class Screen(val route: String) {
     data object Chat : Screen("chat")
@@ -35,6 +36,7 @@ sealed class Screen(val route: String) {
     data object EditSystemPrompt : Screen("ai/edit_system_prompt")
     data object EditMoralityPolicy : Screen("ai/edit_morality_policy")
     data object AutoScan : Screen("ai/auto_scan")
+    data object LanguageSettings : Screen("app/language_settings")
 }
 
 @Composable
@@ -80,11 +82,15 @@ fun OpenRingNavHost(
         }
         composable(Screen.Settings.route) {
             SettingsScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigateToLanguageSettings = { navController.navigate(Screen.LanguageSettings.route) }
             )
         }
         composable(Screen.Permissions.route) {
             PermissionsScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Screen.LanguageSettings.route) {
+            LanguageSettingsScreen(onBack = { navController.popBackStack() })
         }
         composable(Screen.List.route) {
             ScriptListScreen(

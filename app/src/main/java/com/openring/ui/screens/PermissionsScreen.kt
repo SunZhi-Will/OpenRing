@@ -1,9 +1,19 @@
 package com.openring.ui.screens
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.res.stringResource
+import androidx.core.content.ContextCompat
+import com.openring.R
+import com.openring.domain.Scheduler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.SettingsAccessibility
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -50,6 +62,7 @@ import com.openring.ui.theme.Spacing
 @Composable
 fun PermissionsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val activity = LocalActivity.current as? ComponentActivity
     val lifecycleOwner = LocalLifecycleOwner.current
 
     var overlayGranted by remember {
@@ -58,10 +71,40 @@ fun PermissionsScreen(onBack: () -> Unit) {
     var accessibilityEnabled by remember {
         mutableStateOf(isOpenRingAccessibilityEnabled(context))
     }
+    var notificationsGranted by remember {
+        mutableStateOf(
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
+        )
+    }
+
+    val requestPostNotifications = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        notificationsGranted = granted
+        if (granted) {
+            Scheduler(context.applicationContext).refreshAlwaysOnServiceState()
+        }
+    }
 
     fun refreshStatus() {
         overlayGranted = Settings.canDrawOverlays(context)
         accessibilityEnabled = isOpenRingAccessibilityEnabled(context)
+        notificationsGranted =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
+            } else {
+                true
+            }
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -100,6 +143,23 @@ fun PermissionsScreen(onBack: () -> Unit) {
         }
     }
 
+    fun openAppNotificationSettings() {
+        try {
+            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                }
+            } else {
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+            }
+            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: Exception) {
+            Log.w("OpenRing", "無法開啟通知設定", e)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -125,6 +185,52 @@ fun PermissionsScreen(onBack: () -> Unit) {
                 "在此查看並開啟系統權限。從其他畫面返回時會自動更新狀態。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            PermissionCard(
+                title = stringResource(R.string.permission_notifications_title),
+                summary = when {
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ->
+                        stringResource(R.string.permission_notifications_legacy_summary)
+                    notificationsGranted ->
+                        stringResource(R.string.permission_notifications_granted_summary)
+                    else ->
+                        stringResource(R.string.permission_notifications_denied_summary)
+                },
+                statusContentDescription = when {
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ->
+                        stringResource(R.string.permission_notifications_status_legacy)
+                    notificationsGranted ->
+                        stringResource(R.string.permission_notifications_status_on)
+                    else ->
+                        stringResource(R.string.permission_notifications_status_off)
+                },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Notifications,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                actionLabel = when {
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ->
+                        stringResource(R.string.permission_notifications_action_settings)
+                    notificationsGranted ->
+                        stringResource(R.string.permission_notifications_action_settings)
+                    else ->
+                        stringResource(R.string.permission_notifications_action_allow)
+                },
+                onAction = {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        !notificationsGranted &&
+                        activity != null
+                    ) {
+                        requestPostNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        openAppNotificationSettings()
+                    }
+                },
+                actionContentDescription = stringResource(R.string.permission_notifications_title)
             )
 
             PermissionCard(

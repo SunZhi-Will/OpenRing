@@ -5,6 +5,7 @@ import android.util.Log
 import com.openring.gemini.model.FunctionDeclaration
 import com.openring.gemini.model.Tool
 import com.openring.skills.SkillEnabledStore
+import com.openring.skills.SkillTemplateCatalog
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -28,6 +29,7 @@ object ToolSchemas {
             summarizeViewTree(),
             describeScreen(),
             launchApp(),
+            duolingoMatchPick(),
             findAndClick(),
             clickNode(),
             swipe(),
@@ -51,6 +53,7 @@ object ToolSchemas {
             memoryRecall(),
             callSkill(),
             setSystemPrompt(),
+            installOfficialSkill(),
             installSkill()
         )
 
@@ -184,6 +187,19 @@ object ToolSchemas {
                 }
             }
             putJsonArray("required") { add(JsonPrimitive("text")) }
+        }
+    )
+
+    private fun duolingoMatchPick() = FunctionDeclaration(
+        name = "duolingo_match_pick",
+        description = "For Duolingo word-match screens: collect visible clickable labels, resolve target deterministically via duolingo_word_match_guard, then click the selected label. Prefer this over raw find_and_click for word-match tasks.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("target") { put("type", JsonPrimitive("string")) }
+                putJsonObject("allowContainsFallback") { put("type", JsonPrimitive("boolean")) }
+            }
+            putJsonArray("required") { add(JsonPrimitive("target")) }
         }
     )
 
@@ -515,7 +531,7 @@ object ToolSchemas {
 
     private fun installSkill() = FunctionDeclaration(
         name = "install_skill",
-        description = "Install a Skill plugin from an allowed URL (user must have added the URL to allowed sources in Settings). Returns success or error.",
+        description = "Install a third-party Skill plugin from an allowed URL (user must have added the URL to allowed sources in Settings). Do NOT use this for official built-in templates.",
         parameters = buildJsonObject {
             put("type", JsonPrimitive("object"))
             putJsonObject("properties") {
@@ -524,6 +540,25 @@ object ToolSchemas {
                 }
             }
             putJsonArray("required") { add(JsonPrimitive("url")) }
+        }
+    )
+
+    private fun installOfficialSkill() = FunctionDeclaration(
+        name = "install_official_skill",
+        description = "Install an official built-in Skill template from the OpenRing GitHub catalog by templateId. Use this for requests like 'install official skill'. Never construct a custom URL.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("templateId") {
+                    put("type", JsonPrimitive("string"))
+                    putJsonArray("enum") {
+                        SkillTemplateCatalog.templates.forEach { template ->
+                            add(JsonPrimitive(template.id))
+                        }
+                    }
+                }
+            }
+            putJsonArray("required") { add(JsonPrimitive("templateId")) }
         }
     )
 

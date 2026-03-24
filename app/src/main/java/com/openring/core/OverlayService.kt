@@ -19,6 +19,7 @@ import android.widget.ImageView
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.openring.R
+import com.openring.ui.notifications.OpenRingNotificationStyle
 import com.openring.agent.RunCancellationRegistry
 import com.openring.ui.MainActivity
 
@@ -29,7 +30,7 @@ import com.openring.ui.MainActivity
 class OverlayService : Service() {
 
     companion object {
-        const val CHANNEL_ID = "openring_overlay"
+        const val CHANNEL_ID = "openring_overlay_v2"
         const val NOTIFICATION_ID = 1001
         private const val OVERLAY_SIZE_DP = 56
         const val ACTION_START_AI_RUN = "com.openring.overlay.START_AI_RUN"
@@ -39,7 +40,6 @@ class OverlayService : Service() {
 
     private var windowManager: WindowManager? = null
     private var overlayView: View? = null
-    private var isExpanded = true
     private var initialTouchX = 0f
     private var initialTouchY = 0f
     private var initialWindowX = 0
@@ -85,7 +85,7 @@ class OverlayService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "OpenRing 執行中",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply { setShowBadge(false) }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
@@ -97,12 +97,15 @@ class OverlayService : Service() {
             Intent(this, MainActivity::class.java).apply { setPackage(packageName) },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("OpenRing 執行中")
-            .setContentText("點擊返回主畫面")
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
+        return OpenRingNotificationStyle.apply(
+            NotificationCompat.Builder(this, CHANNEL_ID),
+            this
+        )
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(getString(R.string.notification_overlay_running))
             .setContentIntent(pendingIntent)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .build()
     }
 
@@ -141,25 +144,25 @@ class OverlayService : Service() {
                     initialTouchY = event.rawY
                     initialWindowX = params.x
                     initialWindowY = params.y
+                    true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     params.x = initialWindowX + (event.rawX - initialTouchX).toInt()
                     params.y = initialWindowY + (event.rawY - initialTouchY).toInt()
                     windowManager?.updateViewLayout(overlayView, params)
+                    true
                 }
                 MotionEvent.ACTION_UP -> {
                     val dx = kotlin.math.abs(event.rawX - initialTouchX)
                     val dy = kotlin.math.abs(event.rawY - initialTouchY)
                     if (dx < 10 && dy < 10) {
-                        toggleExpand()
+                        requestStopAiRun()
                     }
+                    true
                 }
+                else -> false
             }
-            false
         }
-
-        overlayView?.findViewById<ImageView>(R.id.overlay_icon)?.setOnClickListener { onOverlayClicked() }
-        overlayView?.findViewById<ImageView>(R.id.overlay_stop)?.setOnClickListener { requestStopAiRun() }
 
         try {
             windowManager?.addView(overlayView, params)
@@ -168,30 +171,11 @@ class OverlayService : Service() {
         }
     }
 
-    private fun toggleExpand() {
-        isExpanded = !isExpanded
-        val size = (if (isExpanded) OVERLAY_SIZE_DP else 40) * resources.displayMetrics.density
-        overlayView?.layoutParams?.let { params ->
-            params.width = size.toInt()
-            params.height = size.toInt()
-            windowManager?.updateViewLayout(overlayView, params)
-        }
-    }
-
-    private fun onOverlayClicked() {
-        if (!activeSessionId.isNullOrBlank()) {
-            requestStopAiRun()
-            return
-        }
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        startActivity(intent)
-    }
-
     private fun requestStopAiRun() {
-        val sid = activeSessionId ?: return
-        RunCancellationRegistry.cancel(sid)
+        val sid = activeSessionId
+        if (!sid.isNullOrBlank()) {
+            RunCancellationRegistry.cancel(sid)
+        }
         activeSessionId = null
         updateOverlayUiState()
         stopSelf()
@@ -200,11 +184,7 @@ class OverlayService : Service() {
     private fun updateOverlayUiState() {
         val root = overlayView ?: return
         val icon = root.findViewById<ImageView>(R.id.overlay_icon) ?: return
-        val stop = root.findViewById<ImageView>(R.id.overlay_stop)
-        val statusDot = root.findViewById<View>(R.id.overlay_status_dot)
         val aiRunning = !activeSessionId.isNullOrBlank()
-        stop?.visibility = if (aiRunning) View.VISIBLE else View.GONE
-        statusDot?.setBackgroundResource(if (aiRunning) R.drawable.overlay_status_running else R.drawable.overlay_status_idle)
         icon.alpha = if (aiRunning) 1f else 0.92f
         icon.contentDescription = if (aiRunning) "OpenRing AI 執行中，點擊可中斷" else "OpenRing 執行中"
     }

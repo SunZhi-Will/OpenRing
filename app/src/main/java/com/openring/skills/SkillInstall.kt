@@ -110,6 +110,8 @@ object SkillInstall {
                     File(dir, "SKILL.md").writeText(skillMarkdown.trim())
                 }
                 InstalledSkillStore(context).addInstalled(skillId)
+                // Auto-enable immediately after successful install.
+                SkillEnabledStore(context).setEnabled(skillId, true)
                 Result.Ok(skillId)
             }
         }

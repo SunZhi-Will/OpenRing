@@ -11,11 +11,13 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.openring.R
 import com.openring.receiver.AiRunControlReceiver
 import com.openring.ui.MainActivity
 
 object AiRunNotification {
-    const val CHANNEL_ID = "openring_ai_run"
+    /** v2: DEFAULT importance for visibility (see scheduler channel note). */
+    const val CHANNEL_ID = "openring_ai_run_v2"
     const val NOTIFICATION_ID = 1201
     const val EXTRA_SESSION_ID = "session_id"
 
@@ -43,16 +45,19 @@ object AiRunNotification {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notif = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("OpenRing AI 執行中")
-            .setContentText("可從這裡中斷本次執行")
+        val notif = OpenRingNotificationStyle.apply(
+            NotificationCompat.Builder(context, CHANNEL_ID),
+            context
+        )
+            .setContentTitle(context.getString(R.string.app_name))
+            .setContentText(context.getString(R.string.notification_ai_running))
+            .setSubText(context.getString(R.string.notification_ai_running_hint))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(openIntent)
             .addAction(
-                android.R.drawable.ic_media_pause,
-                "中斷",
+                R.drawable.ic_stat_stop,
+                context.getString(R.string.notification_action_stop_run),
                 stopIntent
             )
             .build()
@@ -61,7 +66,6 @@ object AiRunNotification {
     }
 
     fun cancel(context: Context) {
-        if (!hasPostNotificationPermission(context)) return
         NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
     }
 
@@ -71,7 +75,7 @@ object AiRunNotification {
         val channel = NotificationChannel(
             CHANNEL_ID,
             "OpenRing AI Run",
-            NotificationManager.IMPORTANCE_LOW
+            NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
             description = "AI 執行中通知，提供中斷按鈕"
             setShowBadge(false)

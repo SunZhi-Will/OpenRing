@@ -21,11 +21,15 @@ import com.openring.skills.SkillAllowedSourcesStore
 import com.openring.skills.SkillEnabledStore
 import com.openring.skills.SkillInstall
 import com.openring.skills.SkillQuickJsExecutor
+import com.openring.skills.SkillTemplateCatalog
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.putJsonArray
@@ -40,6 +44,8 @@ class ToolDispatcher(
 
     companion object {
         private const val DISCORD_PACKAGE = "com.discord"
+        private const val CLICK_VERIFY_DELAY_MS = 220L
+        private const val CLICK_RETRY_DELAY_MS = 180L
     }
 
     private var lastInputText: String? = null
@@ -211,13 +217,72 @@ class ToolDispatcher(
                         effectiveMatch = "exact"
                     }
                 }
-                when (val r = actionExecutor.clickByText(text, effectiveMatch, tree)) {
+                when (val r = performVerifiedClick(service) { actionExecutor.clickByText(text, effectiveMatch, tree) }) {
                     is ActionResult.Ok -> ToolResult(
                         true,
                         data = buildJsonObject { put("clickedNodeId", "") }
                     )
 
                     is ActionResult.Error -> ToolResult(false, r.code.name, r.message)
+                }
+            }
+
+            "duolingo_match_pick" -> {
+                val target = args["target"]?.jsonPrimitive?.content
+                    ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing target")
+                val allowContainsFallback = args["allowContainsFallback"]?.jsonPrimitive?.content
+                    ?.toBooleanStrictOrNull() ?: false
+                val tree = service.getViewTree()
+                    ?: return ToolResult(false, ErrorCode.NODE_NOT_FOUND.name, "Cannot get view tree")
+                val choices = collectClickableLabels(tree)
+                if (choices.isEmpty()) {
+                    return ToolResult(false, ErrorCode.NODE_NOT_FOUND.name, "No clickable labels found in current screen")
+                }
+
+                val skillInput = buildJsonObject {
+                    put("target", target)
+                    putJsonArray("choices") { choices.forEach { add(JsonPrimitive(it)) } }
+                    put("allowContainsFallback", allowContainsFallback)
+                }
+                val skillResult = executeSkill("duolingo_word_match_guard", skillInput)
+                if (!skillResult.ok) {
+                    return ToolResult(
+                        false,
+                        skillResult.code ?: "SKILL_RUNTIME_ERROR",
+                        skillResult.message ?: "duolingo_word_match_guard failed"
+                    )
+                }
+
+                val status = skillResult.data["status"]?.jsonPrimitive?.content.orEmpty()
+                val selected = skillResult.data["selected"]?.jsonPrimitive?.content.orEmpty()
+                val reason = skillResult.data["reason"]?.jsonPrimitive?.content.orEmpty()
+                val confidence = skillResult.data["confidence"]?.jsonPrimitive?.content?.toDoubleOrNull()
+                val matchedIndices = (skillResult.data["matchedIndices"] as? JsonArray)
+                    ?.mapNotNull { it.jsonPrimitive.content.toIntOrNull() }
+                    ?: emptyList()
+
+                if (status != "ok" || selected.isBlank()) {
+                    return ToolResult(
+                        false,
+                        "DUOLINGO_MATCH_${status.uppercase().ifBlank { "FAILED" }}",
+                        if (reason.isNotBlank()) reason else "Deterministic match not resolved"
+                    )
+                }
+
+                return when (val click = performVerifiedClick(service) { actionExecutor.clickByText(selected, "exact", tree) }) {
+                    is ActionResult.Ok -> ToolResult(
+                        true,
+                        data = buildJsonObject {
+                            put("target", target)
+                            put("selected", selected)
+                            if (confidence != null) put("confidence", confidence)
+                            put("reason", reason)
+                            putJsonArray("matchedIndices") { matchedIndices.forEach { add(JsonPrimitive(it)) } }
+                            put("choicesCount", choices.size)
+                        }
+                    )
+
+                    is ActionResult.Error -> ToolResult(false, click.code.name, click.message)
                 }
             }
 
@@ -239,7 +304,7 @@ class ToolDispatcher(
                         )
                     }
                 }
-                when (val r = actionExecutor.clickByNodeId(nodeId, tree)) {
+                when (val r = performVerifiedClick(service) { actionExecutor.clickByNodeId(nodeId, tree) }) {
                     is ActionResult.Ok -> ToolResult(true, data = buildJsonObject { put("clickedNodeId", nodeId) })
                     is ActionResult.Error -> ToolResult(false, r.code.name, r.message)
                 }
@@ -301,26 +366,35 @@ class ToolDispatcher(
                 val tree = service.getViewTree()
                     ?: return ToolResult(false, ErrorCode.NODE_NOT_FOUND.name, "Cannot get view tree")
                 val candidates = listOf("Send Message", "Send", "發送", "送出", "傳送")
+                var lastNoEffectMessage: String? = null
 
                 for (label in candidates) {
-                    when (val r = actionExecutor.clickByText(label, "exact", tree)) {
+                    when (val r = performVerifiedClick(service, requireUiChange = true) { actionExecutor.clickByText(label, "exact", tree) }) {
                         is ActionResult.Ok -> {
                             pendingVerifyText = lastInputText
                             return ToolResult(true, data = buildJsonObject { put("matched", label) })
                         }
-                        is ActionResult.Error -> Unit
+                        is ActionResult.Error -> if (r.code == ErrorCode.ACTION_FAILED && !r.message.isNullOrBlank()) {
+                            lastNoEffectMessage = r.message
+                        }
                     }
                 }
                 for (label in candidates) {
-                    when (val r = actionExecutor.clickByText(label, "contains", tree)) {
+                    when (val r = performVerifiedClick(service, requireUiChange = true) { actionExecutor.clickByText(label, "contains", tree) }) {
                         is ActionResult.Ok -> {
                             pendingVerifyText = lastInputText
                             return ToolResult(true, data = buildJsonObject { put("matched", label) })
                         }
-                        is ActionResult.Error -> Unit
+                        is ActionResult.Error -> if (r.code == ErrorCode.ACTION_FAILED && !r.message.isNullOrBlank()) {
+                            lastNoEffectMessage = r.message
+                        }
                     }
                 }
-                ToolResult(false, ErrorCode.NODE_NOT_FOUND.name, "Send button not found")
+                if (lastNoEffectMessage != null) {
+                    ToolResult(false, ErrorCode.ACTION_FAILED.name, lastNoEffectMessage)
+                } else {
+                    ToolResult(false, ErrorCode.NODE_NOT_FOUND.name, "Send button not found")
+                }
             }
 
             "verify_send_result" -> {
@@ -430,11 +504,22 @@ class ToolDispatcher(
                     ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing prompt")
                 val enabled = args["enabled"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: true
                 val type = args["type"]?.jsonPrimitive?.content ?: "interval"
-                val mode = args["mode"]?.jsonPrimitive?.content ?: "battery"
+                val requestedMode = args["mode"]?.jsonPrimitive?.content
                 val hour = args["hour"]?.jsonPrimitive?.content?.toIntOrNull() ?: 9
                 val minute = args["minute"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
                 val minutes = args["minutes"]?.jsonPrimitive?.content?.toIntOrNull() ?: 30
-                val schedule = Schedule(enabled, type, mode, hour, minute, minutes)
+                val mode = requestedMode
+                    ?: if (type == "interval" && minutes <= 5) "always_on" else "battery"
+                val replySid = ActiveChatContext.sessionId?.takeIf { it.isNotBlank() }
+                val schedule = Schedule(
+                    enabled = enabled,
+                    type = type,
+                    mode = mode,
+                    hour = hour,
+                    minute = minute,
+                    minutes = minutes,
+                    replyChatSessionId = replySid
+                )
 
                 runBlocking {
                     val db = OpenRingDatabase.getDatabase(context)
@@ -456,12 +541,19 @@ class ToolDispatcher(
                         scheduleJson = json.encodeToString(Schedule.serializer(), schedule)
                     )
                     dao.insert(script)
-                    Scheduler(context).scheduleScript(scriptId, schedule)
+                    val scheduler = Scheduler(context)
+                    scheduler.scheduleScript(scriptId, schedule)
+                    if (enabled) {
+                        // Trigger an immediate first run so users can verify output without waiting on WorkManager jitter.
+                        scheduler.runOnce(scriptId)
+                    }
                     ToolResult(true, data = buildJsonObject {
                         put("scriptId", scriptId)
                         put("name", name)
                         put("enabled", enabled)
                         put("type", type)
+                        put("mode", mode)
+                        put("runOnceStarted", enabled)
                     })
                 }
             }
@@ -475,7 +567,6 @@ class ToolDispatcher(
                 val hour = args["hour"]?.jsonPrimitive?.content?.toIntOrNull() ?: 9
                 val minute = args["minute"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
                 val minutes = args["minutes"]?.jsonPrimitive?.content?.toIntOrNull() ?: 30
-                val schedule = Schedule(enabled, type, mode, hour, minute, minutes)
                 runBlocking {
                     val db = OpenRingDatabase.getDatabase(context)
                     val dao = db.scriptDao()
@@ -483,6 +574,16 @@ class ToolDispatcher(
                     if (script == null) {
                         ToolResult(false, "SCRIPT_NOT_FOUND", "No script with id: $scriptId")
                     } else {
+                        val existingSched = ScriptStore(dao).parseSchedule(script.scheduleJson)
+                        val schedule = Schedule(
+                            enabled = enabled,
+                            type = type,
+                            mode = mode,
+                            hour = hour,
+                            minute = minute,
+                            minutes = minutes,
+                            replyChatSessionId = existingSched.replyChatSessionId
+                        )
                         val updated = script.copy(scheduleJson = json.encodeToString(Schedule.serializer(), schedule))
                         dao.update(updated)
                         Scheduler(context).scheduleScript(scriptId, schedule)
@@ -510,6 +611,13 @@ class ToolDispatcher(
             "install_skill" -> {
                 val url = args["url"]?.jsonPrimitive?.content
                     ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing url")
+                if (url.contains("openring.ai/skills/", ignoreCase = true)) {
+                    return ToolResult(
+                        false,
+                        "INVALID_ARGUMENT",
+                        "Official skills must use install_official_skill (GitHub catalog), not openring.ai URLs."
+                    )
+                }
                 val allowed = SkillAllowedSourcesStore(context)
                 when (val r = SkillInstall.installFromUrl(context, url, allowed)) {
                     is SkillInstall.Result.Ok -> ToolResult(true, data = buildJsonObject {
@@ -517,6 +625,21 @@ class ToolDispatcher(
                         put("message", "Skill installed successfully.")
                     })
                     is SkillInstall.Result.Err -> ToolResult(false, r.code, r.message)
+                }
+            }
+
+            "install_official_skill" -> {
+                val templateId = args["templateId"]?.jsonPrimitive?.content
+                    ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing templateId")
+                val template = SkillTemplateCatalog.templates.firstOrNull { it.id == templateId }
+                    ?: return ToolResult(false, "INVALID_ARGUMENT", "Unknown official templateId: $templateId")
+                when (val result = runBlocking { SkillTemplateCatalog.installTemplate(context, template) }) {
+                    is SkillInstall.Result.Ok -> ToolResult(true, data = buildJsonObject {
+                        put("skillId", result.skillId)
+                        put("templateId", template.id)
+                        put("message", "Official skill installed successfully.")
+                    })
+                    is SkillInstall.Result.Err -> ToolResult(false, result.code, result.message)
                 }
             }
 
@@ -739,7 +862,7 @@ class ToolDispatcher(
     }
 
     private fun findNodesByText(node: ViewNode?, text: String, exact: Boolean): List<ViewNode> {
-        if (node == null) return emptyList()
+        if (node == null) return kotlin.collections.emptyList()
         val here = mutableListOf<ViewNode>()
         val value = node.text ?: node.contentDesc
         if (node.clickable && value != null) {
@@ -769,6 +892,64 @@ class ToolDispatcher(
         }
         node.children.forEach { out.addAll(collectEditableTexts(it)) }
         return out
+    }
+
+    private fun collectClickableLabels(node: ViewNode?): List<String> {
+        if (node == null) return emptyList()
+        val out = linkedSetOf<String>()
+        fun walk(n: ViewNode) {
+            val label = (n.text ?: n.contentDesc).orEmpty().trim()
+            if (n.clickable && label.isNotBlank()) out.add(label)
+            n.children.forEach { walk(it) }
+        }
+        walk(node)
+        return out.toList()
+    }
+
+    private fun performVerifiedClick(
+        service: OpenRingAccessibilityService,
+        requireUiChange: Boolean = false,
+        clickAction: () -> ActionResult
+    ): ActionResult {
+        // Default path: avoid accidental double-tap in game-like UIs (e.g., Duolingo match tiles).
+        // Only enforce UI-change verification (and potential retry) when the caller explicitly requires it.
+        if (!requireUiChange) {
+            return clickAction()
+        }
+
+        val before = captureUiFingerprint(service)
+        when (val first = clickAction()) {
+            is ActionResult.Error -> return first
+            is ActionResult.Ok -> if (didUiChange(service, before)) return ActionResult.Ok
+        }
+
+        Thread.sleep(CLICK_RETRY_DELAY_MS)
+        val retryBefore = captureUiFingerprint(service)
+        return when (val second = clickAction()) {
+            is ActionResult.Error -> second
+            is ActionResult.Ok -> {
+                if (didUiChange(service, retryBefore)) {
+                    ActionResult.Ok
+                } else {
+                    ActionResult.Error(
+                        ErrorCode.ACTION_FAILED,
+                        "Click dispatched but screen did not change. Refresh view tree or choose a more specific target."
+                    )
+                }
+            }
+        }
+    }
+
+    private fun didUiChange(service: OpenRingAccessibilityService, before: String?): Boolean {
+        if (before.isNullOrBlank()) return true
+        Thread.sleep(CLICK_VERIFY_DELAY_MS)
+        val after = captureUiFingerprint(service) ?: return true
+        return before != after
+    }
+
+    private fun captureUiFingerprint(service: OpenRingAccessibilityService): String? {
+        val tree = service.getViewTree() ?: return null
+        return UiTreeCompact.fingerprintUiText(viewNodeToJson(tree))
     }
 }
 

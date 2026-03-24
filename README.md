@@ -159,6 +159,18 @@ When creating a **New release**, upload installable/distributable files directly
 
 ---
 
+## 🟢 Runtime status (schedules & background work)
+
+- **Top-bar status lamp** (Chat): Green (breathing) when **any schedule is enabled**, when **chat AI is running**, or when **a script is executing** (manual run, `WorkManager` worker, or always-on loop). Gray when nothing is armed and nothing is processing.
+- **Unified status notification** (`SchedulerStatusNotification`): Stays visible while schedules are enabled and/or background work is active. Title switches to **“background processing”** while scripts or chat runs are in progress (tracked by `BackgroundWorkTracker`), not only when an alarm fires.
+- **Always-on mode** (`schedule.mode = "always_on"`): Uses a foreground scheduler service for stable timing under idle/doze. The notification can include **Terminate always-on** while that service is running.
+- **Suspended until next app launch**: After **Terminate always-on**, always-on stays off until the next cold app launch (`AlwaysOnRunGate`).
+
+On **Android 13+**, grant **notification permission** or you will not see status notifications.
+The **Permissions** page now always shows a **Notifications** card (all Android versions): on Android 13+ it can request runtime permission directly; on older versions it links to system notification settings for quick verification.
+
+---
+
 ## 🤝 Contributing
 
 We welcome community participation! Whether it's reporting bugs, suggesting new features, or directly opening Pull Requests, every contribution is crucial to us.

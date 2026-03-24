@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,10 +19,10 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
@@ -29,6 +30,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -41,6 +43,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.openring.skills.InstalledSkillStore
 import com.openring.skills.SkillAllowedSourcesStore
 import com.openring.skills.SkillEnabledStore
@@ -71,6 +75,7 @@ fun SkillsScreen(
 
     var statusLine by remember { mutableStateOf<String?>(null) }
     var showUrlInstallDialog by remember { mutableStateOf(false) }
+    var showTemplateDialog by remember { mutableStateOf(false) }
     var urlToInstall by remember { mutableStateOf("") }
     val templateCatalog = remember { SkillTemplateCatalog.templates }
 
@@ -99,6 +104,25 @@ fun SkillsScreen(
     fun installHint(skillId: String): String {
         val hasSkillMd = File(context.filesDir, "skills/$skillId/SKILL.md").isFile
         return if (hasSkillMd) "已安裝：$skillId" else "已安裝：$skillId（建議補上 SKILL.md，讓模型更懂何時使用）"
+    }
+
+    fun uninstallSkill(skillId: String) {
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                enabledStore.setEnabled(skillId, false)
+                installedStore.getSkillDir(context, skillId)?.deleteRecursively()
+                installedStore.removeInstalled(skillId)
+            }.onSuccess {
+                withContext(Dispatchers.Main) {
+                    statusLine = "已移除：$skillId"
+                    refreshSkillLists()
+                }
+            }.onFailure { e ->
+                withContext(Dispatchers.Main) {
+                    statusLine = "移除失敗：${e.message ?: e.javaClass.simpleName}"
+                }
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -140,123 +164,124 @@ fun SkillsScreen(
                     }
                 }
             )
+        },
+        bottomBar = {
+            Surface(shadowElevation = Spacing.xs) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    ) {
+                        FilledTonalButton(
+                            onClick = { pickZipLauncher.launch("application/zip") },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("匯入 ZIP")
+                        }
+                        OutlinedButton(
+                            onClick = { showUrlInstallDialog = true },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("從 URL 安裝")
+                        }
+                    }
+                    statusLine?.let { line ->
+                        Text(
+                            line,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(Spacing.md),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                .padding(padding),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.md),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
                     )
                 ) {
-                    Column(modifier = Modifier.padding(Spacing.sm)) {
+                    Column(
+                        modifier = Modifier.padding(Spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                    ) {
                         Text(
-                            "信任與邊界",
-                            style = MaterialTheme.typography.titleSmall,
+                            "Skills 管理",
+                            style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
-                            "與封閉市集／雲端代管不同：OpenRing 不代為審核第三方 Skill。白名單與本機 QuickJS 執行讓你自行承擔風險與控制權；僅啟用你信任的來源。",
+                            "管理安裝來源、官方範本與已安裝技能。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.92f)
                         )
+                        Text(
+                            "已安裝 ${installedIds.size} ・ 已啟用 ${enabledIds.size}",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
                     }
                 }
-                Spacer(Modifier.height(Spacing.sm))
             }
             item {
-                Text(
-                    "允許從 URL 安裝來源（白名單）",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    "AI 的 install_skill 與下方「從 URL 安裝」僅能使用已加入白名單的 URL 前綴。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(Spacing.xs))
-                OutlinedButton(
-                    onClick = { showAddDialog = true }
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.padding(end = Spacing.xs))
-                    Text("新增允許來源")
-                }
-                Spacer(Modifier.height(Spacing.sm))
-            }
-            item {
-                Spacer(Modifier.height(Spacing.sm))
-                Text(
-                    "官方 Skill 範本（按下載才會安裝）",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    "下列範本只內建目錄資訊，不會預載；點「下載安裝」後才會寫入本機。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(Spacing.xs))
-            }
-            items(templateCatalog) { template ->
-                val installed = installedIds.contains(template.id)
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.md),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                     )
                 ) {
-                    Column(modifier = Modifier.padding(Spacing.sm)) {
-                        Text(template.title, style = MaterialTheme.typography.titleSmall)
-                        Spacer(Modifier.height(Spacing.xs))
-                        Text(
-                            template.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.height(Spacing.sm))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                if (installed) "已安裝：${template.id}" else "未安裝：${template.id}",
+                                "來源白名單",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                "僅允許白名單 URL 前綴進行安裝",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            OutlinedButton(
-                                onClick = {
-                                    scope.launch {
-                                        when (val result = SkillTemplateCatalog.installTemplate(context, template)) {
-                                            is SkillInstall.Result.Ok -> {
-                                                statusLine = installHint(result.skillId)
-                                                refreshSkillLists()
-                                            }
-                                            is SkillInstall.Result.Err -> {
-                                                statusLine = "錯誤 [${result.code}] ${result.message}"
-                                            }
-                                        }
-                                    }
-                                }
-                            ) {
-                                Text(if (installed) "重新下載安裝" else "下載安裝")
-                            }
+                        }
+                        OutlinedButton(onClick = { showAddDialog = true }) {
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = Spacing.xs)
+                            )
+                            Text("新增")
                         }
                     }
                 }
             }
             items(allowedUrls) { url ->
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.md),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                 ) {
                     Row(
@@ -279,19 +304,53 @@ fun SkillsScreen(
                 }
             }
             item {
-                Spacer(Modifier.height(Spacing.md))
+                if (allowedUrls.isEmpty()) {
+                    Text(
+                        "尚未加入任何白名單來源。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = Spacing.md)
+                    )
+                }
+            }
+            item {
                 Text(
-                    "已安裝技能（可啟用/停用）",
+                    "官方 Skill 範本",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = Spacing.sm)
+                    modifier = Modifier.padding(horizontal = Spacing.md)
                 )
-
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.md),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "依需求下載，不會自動預載到本機。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilledTonalButton(onClick = { showTemplateDialog = true }) {
+                        Text("開啟範本列表")
+                    }
+                }
+            }
+            item {
+                Text(
+                    "已安裝技能（${installedIds.size}）",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = Spacing.md)
+                )
                 if (installedIds.isEmpty()) {
                     Text(
-                        "目前沒有安裝任何 Skill。可使用「匯入 ZIP」、從白名單 URL 安裝（含 GitHub Releases 的 zip 直連），或由 AI 呼叫 install_skill。",
+                        "目前沒有安裝任何 Skill，可使用上方的安裝方式加入。",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = Spacing.md)
                     )
                 }
             }
@@ -304,74 +363,63 @@ fun SkillsScreen(
                     }
 
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.md),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                         )
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(Spacing.sm),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                        Column(
+                            modifier = Modifier.padding(Spacing.sm),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.xs)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
-                                    checked = enabledIds.contains(skillId),
-                                    onCheckedChange = { checked ->
-                                        enabledStore.setEnabled(skillId, checked)
-                                        enabledIds = enabledStore.getEnabledIds().toSet()
-                                    }
-                                )
-                                Text(
-                                    displayName,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = Spacing.sm)
+                                ) {
+                                    Text(displayName, style = MaterialTheme.typography.titleSmall)
+                                    Text(
+                                        skillId,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
-
+                            val summary = loadSkillInstructionSummary(skillId)
                             Text(
-                                skillId,
+                                if (summary != null) "說明：$summary" else "未提供 SKILL.md（建議補上）",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val next = !enabledIds.contains(skillId)
+                                        enabledStore.setEnabled(skillId, next)
+                                        enabledIds = enabledStore.getEnabledIds().toSet()
+                                    }
+                                ) {
+                                    Text(if (enabledIds.contains(skillId)) "停用" else "啟用")
+                                }
+                                TextButton(onClick = { uninstallSkill(skillId) }) {
+                                    Text("移除")
+                                }
+                            }
                         }
-                        val summary = loadSkillInstructionSummary(skillId)
-                        Spacer(Modifier.height(Spacing.xs))
-                        Text(
-                            if (summary != null) "SKILL.md: $summary" else "SKILL.md: 未提供（建議加入，提升 AI 使用精準度）",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = Spacing.sm)
-                        )
-                        Spacer(Modifier.height(Spacing.xs))
                     }
                 }
             }
-
-            item {
-                Spacer(Modifier.height(Spacing.md))
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    OutlinedButton(onClick = { pickZipLauncher.launch("application/zip") }) {
-                        Text("匯入 ZIP")
-                    }
-                    OutlinedButton(onClick = { showUrlInstallDialog = true }) {
-                        Text("從 URL 安裝（含 GitHub）")
-                    }
-                }
-                statusLine?.let { line ->
-                    Spacer(Modifier.height(Spacing.sm))
-                    Text(
-                        line,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            item { Spacer(Modifier.height(Spacing.xl)) }
         }
         if (showAddDialog) {
             AlertDialog(
@@ -453,6 +501,76 @@ fun SkillsScreen(
                     TextButton(onClick = { showUrlInstallDialog = false; urlToInstall = "" }) {
                         Text("取消")
                     }
+                }
+            )
+        }
+        if (showTemplateDialog) {
+            AlertDialog(
+                onDismissRequest = { showTemplateDialog = false },
+                title = { Text("官方 Skill 範本") },
+                text = {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 420.dp),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    ) {
+                        items(templateCatalog) { template ->
+                            val installed = installedIds.contains(template.id)
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(Spacing.sm),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(end = Spacing.sm)
+                                    ) {
+                                        Text(template.title, style = MaterialTheme.typography.titleSmall)
+                                        Text(
+                                            template.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            template.id,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            scope.launch {
+                                                when (val result = SkillTemplateCatalog.installTemplate(context, template)) {
+                                                    is SkillInstall.Result.Ok -> {
+                                                        statusLine = installHint(result.skillId)
+                                                        refreshSkillLists()
+                                                    }
+                                                    is SkillInstall.Result.Err -> {
+                                                        statusLine = "錯誤 [${result.code}] ${result.message}"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        Text(if (installed) "重新安裝" else "安裝")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showTemplateDialog = false }) { Text("關閉") }
                 }
             )
         }

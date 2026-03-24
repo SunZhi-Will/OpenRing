@@ -13,30 +13,7 @@
         android:layout_width="36dp"
         android:layout_height="36dp"
         android:layout_gravity="center"
-        android:contentDescription="OpenRing 執行中"
+        android:contentDescription="OpenRing AI 執行中，點擊可中斷"
         android:scaleType="fitCenter"
-        android:src="@drawable/ic_parrot_overlay" />
-
-    <View
-        android:id="@+id/overlay_status_dot"
-        android:layout_width="10dp"
-        android:layout_height="10dp"
-        android:layout_gravity="bottom|start"
-        android:layout_marginStart="2dp"
-        android:layout_marginBottom="2dp"
-        android:background="@drawable/overlay_status_idle" />
-
-    <ImageView
-        android:id="@+id/overlay_stop"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
-        android:layout_gravity="top|end"
-        android:layout_marginTop="1dp"
-        android:layout_marginEnd="1dp"
-        android:background="@drawable/overlay_stop_background"
-        android:contentDescription="中斷執行"
-        android:padding="4dp"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:tint="#FFFFFFFF"
-        android:visibility="gone" />
+        android:src="@mipmap/ic_launcher_round" />
 </FrameLayout>

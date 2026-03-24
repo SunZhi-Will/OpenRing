@@ -20,9 +20,15 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 
 class GeminiRestClient(
-    private val httpClient: OkHttpClient = OkHttpClient(),
+    /** Defaults are 10s in OkHttp; Gemini + tool payloads often need longer. */
+    private val httpClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(5, TimeUnit.MINUTES)
+        .writeTimeout(5, TimeUnit.MINUTES)
+        .build(),
     private val json: Json = Json { ignoreUnknownKeys = true }
 ) {
     private companion object {

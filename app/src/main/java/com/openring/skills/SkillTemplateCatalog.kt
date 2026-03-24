@@ -37,7 +37,43 @@ object SkillTemplateCatalog {
             title = "Threads",
             description = "Prepare a deterministic Threads post payload.",
             manifestUrl = "$RAW_BASE/threads/manifest.json",
-            scriptUrl = "$RAW_BASE/threads/script.js"
+            scriptUrl = "$RAW_BASE/threads/script.js",
+            skillMarkdownUrl = "$RAW_BASE/threads/SKILL.md"
+        ),
+        Template(
+            id = "html_metadata_extractor",
+            title = "HTML Metadata Extractor",
+            description = "Extract title, description, and OpenGraph image from raw HTML.",
+            manifestUrl = "$RAW_BASE/html_metadata_extractor/manifest.json",
+            scriptUrl = "$RAW_BASE/html_metadata_extractor/script.js"
+        ),
+        Template(
+            id = "markdown_to_blocks",
+            title = "Markdown to Blocks",
+            description = "Parse markdown text into deterministic structured JSON blocks.",
+            manifestUrl = "$RAW_BASE/markdown_to_blocks/manifest.json",
+            scriptUrl = "$RAW_BASE/markdown_to_blocks/script.js"
+        ),
+        Template(
+            id = "json_reformatter",
+            title = "JSON Reformatter",
+            description = "Reformat JSON into compact or pretty deterministic output.",
+            manifestUrl = "$RAW_BASE/json_reformatter/manifest.json",
+            scriptUrl = "$RAW_BASE/json_reformatter/script.js"
+        ),
+        Template(
+            id = "crypto_price_fetcher",
+            title = "Crypto Price Fetcher",
+            description = "Deterministic placeholder for symbol price lookup workflows.",
+            manifestUrl = "$RAW_BASE/crypto_price_fetcher/manifest.json",
+            scriptUrl = "$RAW_BASE/crypto_price_fetcher/script.js"
+        ),
+        Template(
+            id = "text_uppercase",
+            title = "Text Uppercase",
+            description = "Convert input text into uppercase deterministically.",
+            manifestUrl = "$RAW_BASE/text_uppercase/manifest.json",
+            scriptUrl = "$RAW_BASE/text_uppercase/script.js"
         )
     )
 

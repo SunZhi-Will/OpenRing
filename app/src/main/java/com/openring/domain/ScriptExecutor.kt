@@ -6,6 +6,8 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import com.openring.core.ActionExecutor
+import com.openring.core.ChatReloadBus
+import com.openring.core.BackgroundWorkTracker
 import com.openring.core.IntentRouter
 import com.openring.core.OpenRingAccessibilityService
 import com.openring.core.OverlayService
@@ -17,7 +19,9 @@ import com.openring.agent.ReActCoordinator
 import com.openring.agent.RunCancellationRegistry
 import com.openring.data.ChatRepository
 import com.openring.data.dao.ExecutionHistoryDao
+import com.openring.data.db.OpenRingDatabase
 import com.openring.data.model.ExecutionRecord
+import com.openring.data.model.Schedule
 import com.openring.data.model.Script
 import com.openring.data.model.ScriptStep
 import com.openring.ui.notifications.AiRunNotification
@@ -67,37 +71,42 @@ class ScriptExecutor(
         }
 
         val appCtx = context.applicationContext
-        val runSessionId = startScriptRunUi(appCtx, steps)
+        BackgroundWorkTracker.acquire(appCtx)
         try {
-            val actionExecutor = service?.getActionExecutor()
-            val intentRouter = IntentRouter(context)
-            val variables = mutableMapOf<String, String>()
+            val runSessionId = startScriptRunUi(appCtx, steps)
+            try {
+                val actionExecutor = service?.getActionExecutor()
+                val intentRouter = IntentRouter(context)
+                val variables = mutableMapOf<String, String>()
 
-            for ((index, step) in steps.withIndex()) {
-                if (RunCancellationRegistry.isCancelled(runSessionId)) {
-                    Log.w("OpenRing", "ScriptExecutor: 使用者中斷 scriptId=${script.id}")
-                    recordExecution(script, success = false, errorMessage = "使用者已中斷")
-                    return ExecutionResult.Failure(index, "使用者已中斷")
+                for ((index, step) in steps.withIndex()) {
+                    if (RunCancellationRegistry.isCancelled(runSessionId)) {
+                        Log.w("OpenRing", "ScriptExecutor: 使用者中斷 scriptId=${script.id}")
+                        recordExecution(script, success = false, errorMessage = "使用者已中斷")
+                        return ExecutionResult.Failure(index, "使用者已中斷")
+                    }
+                    Log.d("OpenRing", "ScriptExecutor: 步驟 ${index + 1}/${steps.size} type=${step.type} params=${step.params}")
+                    onStepComplete?.invoke(index, step.type)
+                    val result = executeStep(script, step, service, actionExecutor, intentRouter, variables, runSessionId)
+                    if (result != null) {
+                        Log.e("OpenRing", "ScriptExecutor: 步驟 ${index + 1} 失敗: $result")
+                        recordExecution(script, success = false, errorMessage = result)
+                        return ExecutionResult.Failure(index, result)
+                    }
+                    Log.d("OpenRing", "ScriptExecutor: 步驟 ${index + 1} 完成")
                 }
-                Log.d("OpenRing", "ScriptExecutor: 步驟 ${index + 1}/${steps.size} type=${step.type} params=${step.params}")
-                onStepComplete?.invoke(index, step.type)
-                val result = executeStep(script, step, service, actionExecutor, intentRouter, variables, runSessionId)
-                if (result != null) {
-                    Log.e("OpenRing", "ScriptExecutor: 步驟 ${index + 1} 失敗: $result")
-                    recordExecution(script, success = false, errorMessage = result)
-                    return ExecutionResult.Failure(index, result)
+
+                Log.d("OpenRing", "ScriptExecutor: 全部步驟執行成功")
+                recordExecution(script, success = true)
+                return ExecutionResult.Success(variables.toMap())
+            } finally {
+                stopScriptRunUi(appCtx, runSessionId)
+                if (restoreOpenRingOnFinish) {
+                    bringOpenRingToFront(appCtx)
                 }
-                Log.d("OpenRing", "ScriptExecutor: 步驟 ${index + 1} 完成")
             }
-
-            Log.d("OpenRing", "ScriptExecutor: 全部步驟執行成功")
-            recordExecution(script, success = true)
-            return ExecutionResult.Success(variables.toMap())
         } finally {
-            stopScriptRunUi(appCtx, runSessionId)
-            if (restoreOpenRingOnFinish) {
-                bringOpenRingToFront(appCtx)
-            }
+            BackgroundWorkTracker.release(appCtx)
         }
     }
 
@@ -299,9 +308,20 @@ class ScriptExecutor(
                     }
                 }
                 if (!success) {
+                    appendScheduledAiErrorToChat(
+                        script = script,
+                        prompt = prompt,
+                        error = lastError ?: "Unknown error"
+                    )
                     lastError
                 } else {
-                    runResult?.let { appendScheduledAiToChat(script, prompt, it.finalText) }
+                    val rr = runResult
+                    if (rr != null) {
+                        appendScheduledAiToChat(script, prompt, rr.finalText)
+                    } else {
+                        Log.w("OpenRing", "ScriptExecutor: ai_action 標記成功但 runResult 為 null，仍寫入占位訊息")
+                        appendScheduledAiToChat(script, prompt, "（本次無法取得模型回覆）")
+                    }
                     null
                 }
             }
@@ -344,13 +364,28 @@ class ScriptExecutor(
     }
 
     /**
-     * 排程或腳本中的 ai_action 完成後寫入目前作用中 Chat 工作階段，讓使用者在對話中可讀到結果。
+     * 優先使用建立排程時儲存的 [Schedule.replyChatSessionId]；若該對話已刪除則退回目前作用中工作階段。
+     */
+    private suspend fun resolveScheduledReplySessionId(repo: ChatRepository, script: Script): String {
+        val preferred = try {
+            json.decodeFromString<Schedule>(script.scheduleJson).replyChatSessionId
+        } catch (_: Exception) {
+            null
+        }?.takeIf { it.isNotBlank() } ?: return repo.getOrCreateActiveSessionId()
+        val exists = OpenRingDatabase.getDatabase(context.applicationContext)
+            .chatSessionDao()
+            .getById(preferred) != null
+        return if (exists) preferred else repo.getOrCreateActiveSessionId()
+    }
+
+    /**
+     * 排程或腳本中的 ai_action 完成後寫入對應 Chat 工作階段，讓使用者在對話中可讀到結果。
      */
     private suspend fun appendScheduledAiToChat(script: Script, prompt: String, finalText: String) {
         withContext(Dispatchers.IO) {
             try {
                 val repo = ChatRepository(context.applicationContext)
-                val sessionId = repo.getOrCreateActiveSessionId()
+                val sessionId = resolveScheduledReplySessionId(repo, script)
                 val idBase = java.util.UUID.randomUUID().toString()
                 repo.addUserMessage(
                     sessionId,
@@ -359,8 +394,39 @@ class ScriptExecutor(
                 )
                 val body = finalText.trim().ifEmpty { "（本次無文字回覆）" }
                 repo.addModelMessage(sessionId, "${idBase}_sched_model", body)
+                repo.activateSession(sessionId)
+                ChatReloadBus.notifyMessagesChanged()
+                Log.i("OpenRing", "ScriptExecutor: 排程 AI 結果已寫入 chat sessionId=$sessionId script=${script.name}")
             } catch (e: Exception) {
                 Log.e("OpenRing", "ScriptExecutor: 寫入 Chat 失敗 scriptId=${script.id}", e)
+            }
+        }
+    }
+
+    /**
+     * ai_action 失敗時也寫入 Chat，避免使用者誤以為排程完全沒有執行。
+     */
+    private suspend fun appendScheduledAiErrorToChat(script: Script, prompt: String, error: String) {
+        withContext(Dispatchers.IO) {
+            try {
+                val repo = ChatRepository(context.applicationContext)
+                val sessionId = resolveScheduledReplySessionId(repo, script)
+                val idBase = java.util.UUID.randomUUID().toString()
+                repo.addUserMessage(
+                    sessionId,
+                    "${idBase}_sched_user",
+                    "[排程：${script.name}]\n$prompt"
+                )
+                repo.addModelMessage(
+                    sessionId,
+                    "${idBase}_sched_model",
+                    "（排程執行失敗）$error"
+                )
+                repo.activateSession(sessionId)
+                ChatReloadBus.notifyMessagesChanged()
+                Log.i("OpenRing", "ScriptExecutor: 排程 AI 失敗已寫入 chat sessionId=$sessionId script=${script.name}")
+            } catch (e: Exception) {
+                Log.e("OpenRing", "ScriptExecutor: 寫入失敗 Chat 失敗 scriptId=${script.id}", e)
             }
         }
     }
