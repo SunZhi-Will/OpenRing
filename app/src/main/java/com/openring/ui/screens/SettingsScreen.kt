@@ -59,7 +59,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -109,6 +108,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onNavigateToLanguageSettings: () -> Unit = {},
     onNavigateToPermissionSettings: () -> Unit = {},
+    screenMode: SettingsScreenMode = SettingsScreenMode.GENERAL,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val keyStore = remember { ApiKeyStore(context) }
@@ -156,19 +156,30 @@ fun SettingsScreen(
     var editDialogModelId by remember { mutableStateOf<String?>(null) }
     var deleteDialogModelId by remember { mutableStateOf<String?>(null) }
 
+    val isModelMode = screenMode == SettingsScreenMode.AI_MODEL
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(context.getString(R.string.menu_settings)) },
+                title = {
+                    Text(
+                        if (isModelMode) context.getString(R.string.ai_model_settings_title)
+                        else context.getString(R.string.menu_settings)
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
-                actions = {
-                    IconButton(onClick = { addDialogOpen = true }) {
-                        Icon(Icons.Default.Add, contentDescription = "新增模型")
+                actions = if (isModelMode) {
+                    {
+                        IconButton(onClick = { addDialogOpen = true }) {
+                            Icon(Icons.Default.Add, contentDescription = "新增模型")
+                        }
                     }
+                } else {
+                    {}
                 }
             )
         }
@@ -179,113 +190,114 @@ fun SettingsScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = context.getString(R.string.settings_section_general),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onNavigateToLanguageSettings),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Row(
+            if (!isModelMode) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = context.getString(R.string.settings_section_general),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(Spacing.md),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                        .clickable(onClick = onNavigateToLanguageSettings),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
-                    Icon(Icons.Default.Language, contentDescription = null)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = context.getString(R.string.settings_language_title),
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        Text(
-                            text = context.getString(R.string.settings_language_subtitle),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+                    ) {
+                        Icon(Icons.Default.Language, contentDescription = null)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = context.getString(R.string.settings_language_title),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+                            Text(
+                                text = context.getString(R.string.settings_language_subtitle),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = null)
                     }
-                    Icon(Icons.Default.ChevronRight, contentDescription = null)
                 }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onNavigateToPermissionSettings),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            ) {
-                Row(
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(Spacing.md),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        .clickable(onClick = onNavigateToPermissionSettings),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                 ) {
-                    Icon(Icons.Default.Security, contentDescription = null)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = context.getString(R.string.settings_permissions_title),
-                            style = MaterialTheme.typography.titleSmall,
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.xs))
-                        Text(
-                            text = context.getString(R.string.settings_permissions_subtitle),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        Icon(Icons.Default.Security, contentDescription = null)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = context.getString(R.string.settings_permissions_title),
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+                            Text(
+                                text = context.getString(R.string.settings_permissions_subtitle),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = null)
                     }
-                    Icon(Icons.Default.ChevronRight, contentDescription = null)
                 }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = context.getString(R.string.settings_section_models),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                context.getString(R.string.settings_models_reorder_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+            } else {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = context.getString(R.string.settings_section_models),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    context.getString(R.string.settings_models_reorder_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
-            ModelReorderList(
-                models = models,
-                isModelReady = { item ->
-                    when (item.provider.lowercase()) {
-                        "local" -> localModelSupported && LocalModelCatalog.isDownloaded(context, item.model)
-                        else -> keyStore.getGeminiApiKeyForModel(item.id).isNullOrBlank().not()
-                    }
-                },
-                localModelSupported = localModelSupported,
-                localModelUnsupportedReason = localModelUnsupportedReason,
-                downloadingOptionId = downloadingOptionId,
-                downloadProgress = downloadProgress,
-                onRequestDownload = { id ->
-                    models.firstOrNull { it.id == id }?.let { startLocalDownload(it) }
-                },
-                onReorderCommitted = { modelStore.saveModels(models.toList()) },
-                onRequestEdit = { id -> editDialogModelId = id },
-                onRequestDelete = { id -> deleteDialogModelId = id }
-            )
+                ModelReorderList(
+                    models = models,
+                    isModelReady = { item ->
+                        when (item.provider.lowercase()) {
+                            "local" -> localModelSupported && LocalModelCatalog.isDownloaded(context, item.model)
+                            else -> keyStore.getGeminiApiKeyForModel(item.id).isNullOrBlank().not()
+                        }
+                    },
+                    localModelSupported = localModelSupported,
+                    localModelUnsupportedReason = localModelUnsupportedReason,
+                    downloadingOptionId = downloadingOptionId,
+                    downloadProgress = downloadProgress,
+                    onRequestDownload = { id ->
+                        models.firstOrNull { it.id == id }?.let { startLocalDownload(it) }
+                    },
+                    onReorderCommitted = { modelStore.saveModels(models.toList()) },
+                    onRequestEdit = { id -> editDialogModelId = id },
+                    onRequestDelete = { id -> deleteDialogModelId = id }
+                )
+            }
         }
     }
 
-    if (addDialogOpen) {
+    if (isModelMode && addDialogOpen) {
         ModelUpsertDialog(
             title = "新增模型",
             initial = null,
@@ -319,7 +331,7 @@ fun SettingsScreen(
         )
     }
 
-    val editTarget = editDialogModelId?.let { id -> models.firstOrNull { it.id == id } }
+    val editTarget = if (isModelMode) editDialogModelId?.let { id -> models.firstOrNull { it.id == id } } else null
     if (editTarget != null) {
         val currentKey = keyStore.getGeminiApiKeyForModel(editTarget.id).orEmpty()
         val editInitial =
@@ -375,7 +387,7 @@ fun SettingsScreen(
         )
     }
 
-    val deleteTarget = deleteDialogModelId?.let { id -> models.firstOrNull { it.id == id } }
+    val deleteTarget = if (isModelMode) deleteDialogModelId?.let { id -> models.firstOrNull { it.id == id } } else null
     if (deleteTarget != null) {
         AlertDialog(
             onDismissRequest = { deleteDialogModelId = null },
@@ -411,6 +423,11 @@ fun SettingsScreen(
             dismissButton = { TextButton(onClick = { deleteDialogModelId = null }) { Text("取消") } }
         )
     }
+}
+
+enum class SettingsScreenMode {
+    GENERAL,
+    AI_MODEL
 }
 
 @Composable

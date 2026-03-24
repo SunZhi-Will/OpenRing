@@ -101,7 +101,8 @@ Ready to start contributing or build OpenRing yourself? Follow these steps:
 ### 1. Prerequisites
 - [Android Studio Jellyfish](https://developer.android.com/studio) or newer
 - Java Development Kit (JDK) 17+
-- Android SDK (API Level 34)
+- Android SDK Platform 36 and Build-Tools 36.0.0
+- Android targetSdk 34 device/emulator for runtime validation
 
 ### 2. Clone the repo
 ```bash
@@ -116,6 +117,13 @@ You can open the project directly via Android Studio and click `Run`, or compile
 ```
 
 The debug APK is written to `app/build/outputs/apk/debug/` (typically `app-debug.apk`).
+
+### 4. Verification and test status
+
+- Current CI baseline is `./gradlew assembleDebug` + security scans (CodeQL / dependency review).
+- The project currently has no committed `app/src/test` or `app/src/androidTest` suites.
+- For now, quality validation relies on successful build plus manual feature checks on device/emulator.
+- Lint tasks are temporarily disabled due to an AGP lint tool crash in some environments; see `docs/technical/CI_CD.md`.
 
 #### Download prebuilt debug APK (CI)
 
@@ -144,6 +152,12 @@ When creating a **New release**, upload installable/distributable files directly
 ---
 
 ## 📚 Documentation Navigation
+
+### Quick paths by role
+
+- **Users**: [README.zh-TW.md](README.zh-TW.md), [PRD.md](docs/product/PRD.md)
+- **Contributors**: [CONTRIBUTING.md](CONTRIBUTING.md), [CI_CD.md](docs/technical/CI_CD.md), [CHANGELOG.md](CHANGELOG.md)
+- **Developers**: [AI_AGENT.md](docs/technical/AI_AGENT.md), [SKILLS.md](docs/technical/SKILLS.md), [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md), [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md)
 
 | Document                                                | Description                                                                            |
 | ------------------------------------------------------- | -------------------------------------------------------------------------------------- |

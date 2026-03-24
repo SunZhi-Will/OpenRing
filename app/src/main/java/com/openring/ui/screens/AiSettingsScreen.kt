@@ -48,6 +48,7 @@ fun AiSettingsScreen(
     onEditSystemPrompt: () -> Unit,
     onEditMoralityPolicy: () -> Unit,
     onNavigateToSkills: () -> Unit,
+    onNavigateToAiModelSettings: () -> Unit,
     onNavigateToAutoScan: () -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -91,7 +92,7 @@ fun AiSettingsScreen(
             item {
                 SettingsNavCard(
                     icon = Icons.Default.Tune,
-                    title = "System Prompt",
+                    title = stringResource(R.string.ai_settings_system_prompt_title),
                     subtitle = systemPromptPreview,
                     onClick = onEditSystemPrompt
                 )
@@ -100,7 +101,7 @@ fun AiSettingsScreen(
             item {
                 SettingsNavCard(
                     icon = Icons.Default.Lock,
-                    title = "道德",
+                    title = stringResource(R.string.ai_settings_morality_title),
                     subtitle = moralityPolicyPreview,
                     onClick = onEditMoralityPolicy
                 )
@@ -108,9 +109,18 @@ fun AiSettingsScreen(
 
             item {
                 SettingsNavCard(
+                    icon = Icons.Default.Tune,
+                    title = stringResource(R.string.ai_model_settings_title),
+                    subtitle = stringResource(R.string.ai_model_settings_subtitle),
+                    onClick = onNavigateToAiModelSettings
+                )
+            }
+
+            item {
+                SettingsNavCard(
                     icon = Icons.Default.Radar,
-                    title = "自動掃描",
-                    subtitle = "背景快取畫面供 get_cached_scan 使用",
+                    title = stringResource(R.string.ai_settings_auto_scan_title),
+                    subtitle = stringResource(R.string.ai_settings_auto_scan_subtitle),
                     onClick = onNavigateToAutoScan
                 )
             }
@@ -119,7 +129,7 @@ fun AiSettingsScreen(
                 SettingsNavCard(
                     icon = Icons.Default.Extension,
                     title = "Skills",
-                    subtitle = "安裝、啟用、管理外掛技能",
+                    subtitle = stringResource(R.string.ai_settings_skills_subtitle),
                     onClick = onNavigateToSkills
                 )
             }
@@ -127,8 +137,8 @@ fun AiSettingsScreen(
             item {
                 SettingsNavCard(
                     icon = Icons.Default.Tune,
-                    title = "最大回合數",
-                    subtitle = "目前：$maxRounds（預設 30）",
+                    title = stringResource(R.string.ai_settings_max_rounds_title),
+                    subtitle = stringResource(R.string.ai_settings_max_rounds_subtitle, maxRounds),
                     onClick = { showMaxRoundsDialog = true }
                 )
             }
@@ -140,17 +150,17 @@ fun AiSettingsScreen(
         var draft by remember(showMaxRoundsDialog) { mutableStateOf(maxRounds.toString()) }
         AlertDialog(
             onDismissRequest = { showMaxRoundsDialog = false },
-            title = { Text("調整最大回合數") },
+            title = { Text(stringResource(R.string.ai_settings_adjust_max_rounds)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                    Text("可設定範圍：5 - 300。數字越大，AI 嘗試步數越多。")
+                    Text(stringResource(R.string.ai_settings_max_rounds_range))
                     OutlinedTextField(
                         value = draft,
                         onValueChange = { next ->
                             draft = next.filter { it.isDigit() }.take(3)
                         },
                         singleLine = true,
-                        label = { Text("最大回合數") }
+                        label = { Text(stringResource(R.string.ai_settings_max_rounds_title)) }
                     )
                 }
             },
@@ -165,10 +175,10 @@ fun AiSettingsScreen(
                             showMaxRoundsDialog = false
                         }
                     }
-                ) { Text("儲存") }
+                ) { Text(stringResource(R.string.save)) }
             },
             dismissButton = {
-                TextButton(onClick = { showMaxRoundsDialog = false }) { Text("取消") }
+                TextButton(onClick = { showMaxRoundsDialog = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }

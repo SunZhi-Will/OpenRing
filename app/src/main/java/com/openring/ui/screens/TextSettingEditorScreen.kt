@@ -22,6 +22,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.openring.R
 import com.openring.ui.theme.Spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,14 +43,14 @@ fun TextSettingEditorScreen(
                 title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
                 actions = {
                     Button(
                         onClick = { onSave(value) },
                         enabled = true
-                    ) { Text("儲存") }
+                    ) { Text(stringResource(R.string.save)) }
                 }
             )
         }

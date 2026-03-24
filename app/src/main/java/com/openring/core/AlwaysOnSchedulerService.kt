@@ -78,7 +78,7 @@ class AlwaysOnSchedulerService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "OpenRing 常駐排程",
+                getString(R.string.notification_channel_always_on_name),
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply { setShowBadge(false) }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)

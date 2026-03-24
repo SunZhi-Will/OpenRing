@@ -55,7 +55,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.openring.R
 import com.openring.core.OpenRingAccessibilityService
 import com.openring.ui.components.AppIcon
 import com.openring.ui.theme.Spacing
@@ -102,10 +104,10 @@ fun ScriptListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("工作流", style = MaterialTheme.typography.titleLarge) },
+                title = { Text(stringResource(R.string.script_list_title), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回聊天")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.script_list_back_to_chat))
                     }
                 },
                 actions = {
@@ -113,10 +115,10 @@ fun ScriptListScreen(
                         onClick = { showTemplateDialog = true },
                         enabled = templateEntries.isNotEmpty()
                     ) {
-                        Icon(Icons.Default.PostAdd, contentDescription = "從範本建立")
+                        Icon(Icons.Default.PostAdd, contentDescription = stringResource(R.string.script_list_create_from_template))
                     }
                     IconButton(onClick = onNavigateToHistory) {
-                        Icon(Icons.Default.History, contentDescription = "執行歷史")
+                        Icon(Icons.Default.History, contentDescription = stringResource(R.string.script_list_execution_history))
                     }
                 }
             )
@@ -127,7 +129,7 @@ fun ScriptListScreen(
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
-                Icon(Icons.Default.Add, contentDescription = "新增工作流")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.script_list_add_workflow))
             }
         }
     ) { padding ->
@@ -146,13 +148,13 @@ fun ScriptListScreen(
                 ) {
                     Column(modifier = Modifier.padding(Spacing.md)) {
                         Text(
-                            "請啟用無障礙服務",
+                            stringResource(R.string.script_list_accessibility_required_title),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
                         Spacer(modifier = Modifier.height(Spacing.sm))
                         Text(
-                            "OpenRing 需要無障礙權限以讀取畫面並執行自動化操作",
+                            stringResource(R.string.script_list_accessibility_required_body),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
@@ -162,7 +164,7 @@ fun ScriptListScreen(
                                 context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                             }
                         ) {
-                            Text("前往設定")
+                            Text(stringResource(R.string.script_list_go_to_settings))
                         }
                     }
                 }
@@ -183,13 +185,13 @@ fun ScriptListScreen(
                         tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                     )
                     Text(
-                        "尚無工作流",
+                        stringResource(R.string.script_list_empty_title),
                         style = MaterialTheme.typography.titleLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(Spacing.sm))
                     Text(
-                        "點擊右下角 + 按鈕建立第一個工作流",
+                        stringResource(R.string.script_list_empty_subtitle),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -262,11 +264,11 @@ fun ScriptListScreen(
     if (showTemplateDialog) {
         AlertDialog(
             onDismissRequest = { showTemplateDialog = false },
-            title = { Text("從範本建立") },
+            title = { Text(stringResource(R.string.script_list_create_from_template)) },
             text = {
                 Column {
                     if (templateEntries.isEmpty()) {
-                        Text("尚無內建範本。")
+                        Text(stringResource(R.string.script_list_no_builtin_templates))
                     } else {
                         templateEntries.forEach { entry ->
                             TextButton(
@@ -294,7 +296,7 @@ fun ScriptListScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showTemplateDialog = false }) {
-                    Text("關閉")
+                    Text(stringResource(R.string.close))
                 }
             }
         )
@@ -313,16 +315,20 @@ private fun ScriptItem(
 ) {
     val schedule = scriptStore.parseSchedule(script.scheduleJson)
     val scheduleText = when {
-        !schedule.enabled -> "未排程"
-        schedule.type == "daily" -> "每日 ${schedule.hour}:${schedule.minute.toString().padStart(2, '0')}"
-        schedule.type == "hourly" -> "每小時 ${schedule.minute} 分"
-        schedule.type == "interval" -> "每 ${schedule.minutes} 分鐘"
-        else -> "未排程"
+        !schedule.enabled -> stringResource(R.string.script_schedule_none)
+        schedule.type == "daily" -> stringResource(
+            R.string.script_schedule_daily,
+            schedule.hour,
+            schedule.minute.toString().padStart(2, '0')
+        )
+        schedule.type == "hourly" -> stringResource(R.string.script_schedule_hourly, schedule.minute)
+        schedule.type == "interval" -> stringResource(R.string.script_schedule_interval, schedule.minutes)
+        else -> stringResource(R.string.script_schedule_none)
     }
     val modeBadge = when {
         !schedule.enabled -> null
-        schedule.mode == "exact" -> "精準"
-        schedule.mode == "always_on" -> "常駐"
+        schedule.mode == "exact" -> stringResource(R.string.script_schedule_mode_exact)
+        schedule.mode == "always_on" -> stringResource(R.string.script_schedule_mode_always_on)
         else -> null
     }
 
@@ -332,8 +338,8 @@ private fun ScriptItem(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("刪除腳本") },
-            text = { Text("確定要刪除「${script.name}」嗎？此操作無法復原。") },
+            title = { Text(stringResource(R.string.script_delete_title)) },
+            text = { Text(stringResource(R.string.script_delete_confirm, script.name)) },
             confirmButton = {
                 androidx.compose.material3.Button(
                     onClick = {
@@ -344,12 +350,12 @@ private fun ScriptItem(
                         containerColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Text("刪除")
+                    Text(stringResource(R.string.delete))
                 }
             },
             dismissButton = {
                 OutlinedButton(onClick = { showDeleteConfirm = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -399,10 +405,10 @@ private fun ScriptItem(
                     )
                 }
                 IconButton(onClick = { showDeleteConfirm = true }) {
-                    Icon(Icons.Default.Delete, contentDescription = "刪除", tint = MaterialTheme.colorScheme.error)
+                    Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.script_delete_icon_desc), tint = MaterialTheme.colorScheme.error)
                 }
                 IconButton(onClick = onRun) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "執行", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.PlayArrow, contentDescription = stringResource(R.string.script_run_icon_desc), tint = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(
                     onClick = onToggleSchedule,
@@ -415,7 +421,11 @@ private fun ScriptItem(
                     }
                     Icon(
                         Icons.Default.History,
-                        contentDescription = if (schedule.enabled) "關閉排程" else "啟用排程",
+                        contentDescription = if (schedule.enabled) {
+                            stringResource(R.string.script_schedule_toggle_off)
+                        } else {
+                            stringResource(R.string.script_schedule_toggle_on)
+                        },
                         tint = enabledColor
                     )
                 }
@@ -427,7 +437,7 @@ private fun ScriptItem(
             onDismissRequest = { showContextMenu = false }
         ) {
             DropdownMenuItem(
-                text = { Text("編輯") },
+                text = { Text(stringResource(R.string.edit)) },
                 onClick = {
                     showContextMenu = false
                     onClick()
@@ -437,7 +447,7 @@ private fun ScriptItem(
                 }
             )
             DropdownMenuItem(
-                text = { Text("刪除") },
+                text = { Text(stringResource(R.string.delete)) },
                 onClick = {
                     showContextMenu = false
                     showDeleteConfirm = true

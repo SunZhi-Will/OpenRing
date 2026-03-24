@@ -10,6 +10,21 @@ This document describes the GitHub Actions automation for OpenRing: continuous i
 | **CodeQL** | `.github/workflows/codeql.yml` | Runs [CodeQL](https://codeql.github.com/) analysis for **Java/Kotlin** after a successful Gradle build; uploads results to the repository **Security** tab when enabled. |
 | **Dependency Review** | `.github/workflows/dependency-review.yml` | On pull requests, reviews dependency changes against GitHub’s advisory database (high/critical issues are highlighted in the PR). |
 
+## Current quality-gate status
+
+- **Build gate**: CI currently enforces `./gradlew assembleDebug`.
+- **Security gate**: CodeQL + Dependency Review are enabled in workflows.
+- **Test gate**: No committed unit/UI test suites yet (`app/src/test`, `app/src/androidTest` are currently absent).
+- **Lint gate**: Lint tasks are temporarily disabled in Gradle due to an AGP/UAST lint runtime crash in some environments (tooling issue, not app logic regression).
+
+### Local verification order (recommended)
+
+1. `./gradlew assembleDebug`
+2. Install and smoke-test on emulator/device (permissions, chat, scripts, schedule trigger)
+3. `./gradlew build` before merge/release branches
+
+When lint/tooling stability is restored, re-enable lint tasks and promote lint back to CI gate.
+
 ## Supply-chain and dependency hygiene
 
 - **Dependabot** (`.github/dependabot.yml`) opens weekly update pull requests for **Gradle** and **GitHub Actions** dependencies.

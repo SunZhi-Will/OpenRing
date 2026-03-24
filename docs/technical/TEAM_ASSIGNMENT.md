@@ -24,9 +24,9 @@
 - **UI 層**：腳本列表、腳本編輯器、排程設定、執行歷史、**設定 → 權限設定**、聊天與權限導覽
 
 ### 參考文件
-1. `docs/PROJECT_PLAN.md` — 全文（架構、模組、資料模型、里程碑）
-2. `docs/SCRIPT_FORMAT.md` — 腳本 JSON 格式、動作類型、排程格式
-3. `docs/PRODUCT_BACKLOG.md` — Epic 1、2、3 全部 User Story
+1. `docs/product/PROJECT_PLAN.md` — 全文（架構、模組、資料模型、里程碑）
+2. `docs/technical/SCRIPT_FORMAT.md` — 腳本 JSON 格式、動作類型、排程格式
+3. `docs/product/PRODUCT_BACKLOG.md` — Epic 1、2、3 全部 User Story
 
 ### 啟動 Prompt
 
@@ -35,9 +35,9 @@
 
 請根據以下文件實作：
 
-1. 閱讀 docs/PROJECT_PLAN.md — 系統架構、模組拆解、目錄結構
-2. 閱讀 docs/SCRIPT_FORMAT.md — 腳本 JSON 格式、動作類型
-3. 閱讀 docs/PRODUCT_BACKLOG.md — Epic 1~6 的 User Story（包含 Chat-Driven OS / Gemini / QuickJS Skills）
+1. 閱讀 docs/product/PROJECT_PLAN.md — 系統架構、模組拆解、目錄結構
+2. 閱讀 docs/technical/SCRIPT_FORMAT.md — 腳本 JSON 格式、動作類型
+3. 閱讀 docs/product/PRODUCT_BACKLOG.md — Epic 1~6 的 User Story（包含 Chat-Driven OS / Gemini / QuickJS Skills）
 
 請依序實作：
 
@@ -63,7 +63,7 @@
 - VLM screenshot fallback：連續失敗後改用視覺定位策略
 - 錯誤追蹤與重試策略強化
 
-技術棧：Kotlin，minSdk 26，targetSdk 34。UI 可用 Jetpack Compose 或 XML。參考 Android AccessibilityService、GestureDescription、WorkManager、Room 官方文件。
+技術棧：Kotlin（目前專案 Kotlin 2.3.10），minSdk 26，targetSdk 34（compileSdk 36）。UI 可用 Jetpack Compose 或 XML。參考 Android AccessibilityService、GestureDescription、WorkManager、Room 官方文件。
 ```
 
 ---
@@ -82,6 +82,7 @@
 
 - `docs/PROTOCOL.md` 為舊版 WebSocket 協定，純手機端架構下**不再使用**，可保留作參考或刪除。裝置端權限與 Agent 工具請見 **README** 與 **[AI_AGENT.md](AI_AGENT.md)**。
 - 若未來擴充「電腦遠端控制」功能，可再引入後端與 WebSocket。
+- 若文件標記為 deprecated，需在檔首明確標註替代文件，並至少跨一個小版本再評估移除。
 
 ---
 <a id="english-version"></a>
@@ -110,9 +111,9 @@
 - **UI Layer**: Script List, Script Editor, Schedule Settings, Execution History, **Settings → Permission settings**, Chat and permission entry points
 
 ### Reference Documents
-1. `docs/PROJECT_PLAN.md` — Full document (Architecture, Modules, Data Models, Milestones)
-2. `docs/SCRIPT_FORMAT.md` — Script JSON Format, Action Types, Schedule Format
-3. `docs/PRODUCT_BACKLOG.md` — All User Stories for Epic 1, 2, 3
+1. `docs/product/PROJECT_PLAN.md` — Full document (Architecture, Modules, Data Models, Milestones)
+2. `docs/technical/SCRIPT_FORMAT.md` — Script JSON Format, Action Types, Schedule Format
+3. `docs/product/PRODUCT_BACKLOG.md` — All User Stories for Epic 1, 2, 3
 
 ### Startup Prompt
 
@@ -121,9 +122,9 @@ You are the Android Developer for OpenRing. OpenRing is a "mobile-only" architec
 
 Please implement according to the following documents:
 
-1. Read docs/PROJECT_PLAN.md — System Architecture, Module Breakdown, Directory Structure
-2. Read docs/SCRIPT_FORMAT.md — Script JSON Format, Action Types
-3. Read docs/PRODUCT_BACKLOG.md — User Stories for Epic 1~6 (including Chat-Driven OS / Gemini / QuickJS Skills)
+1. Read docs/product/PROJECT_PLAN.md — System Architecture, Module Breakdown, Directory Structure
+2. Read docs/technical/SCRIPT_FORMAT.md — Script JSON Format, Action Types
+3. Read docs/product/PRODUCT_BACKLOG.md — User Stories for Epic 1~6 (including Chat-Driven OS / Gemini / QuickJS Skills)
 
 Please implement in the following order:
 
@@ -149,7 +150,7 @@ Please implement in the following order:
 - VLM screenshot fallback: Switch to visual positioning strategy after continuous failures
 - Error tracking and retry strategy enhancement
 
-Tech Stack: Kotlin, minSdk 26, targetSdk 34. UI can use Jetpack Compose or XML. Reference official Android AccessibilityService, GestureDescription, WorkManager, and Room documentation.
+Tech Stack: Kotlin (project currently uses Kotlin 2.3.10), minSdk 26, targetSdk 34 (compileSdk 36). UI can use Jetpack Compose or XML. Reference official Android AccessibilityService, GestureDescription, WorkManager, and Room documentation.
 ```
 
 ---
@@ -168,3 +169,4 @@ Tech Stack: Kotlin, minSdk 26, targetSdk 34. UI can use Jetpack Compose or XML. 
 
 - `docs/PROTOCOL.md` is the legacy WebSocket protocol, which is **no longer used** under the mobile-only architecture. It can be kept for reference or deleted. On-device permissions and agent tools are documented in **README** and **[AI_AGENT.md](AI_AGENT.md)**.
 - If the "PC remote control" feature is expanded in the future, backend and WebSocket can be reintroduced.
+- For deprecated docs, add clear replacement links at the top, and evaluate removal only after at least one minor release cycle.

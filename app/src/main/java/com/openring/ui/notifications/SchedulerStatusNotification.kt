@@ -54,18 +54,18 @@ object SchedulerStatusNotification {
         val scheduleShort = when {
             enabledScheduleCount <= 0 -> null
             hasAlwaysOnEnabled && !alwaysOnSuspended ->
-                "常駐 · $enabledScheduleCount 項"
+                context.getString(R.string.notification_status_resident_count, enabledScheduleCount)
             hasAlwaysOnEnabled && alwaysOnSuspended ->
-                "排程 $enabledScheduleCount 項 · 常駐暫停（下次開啟 App 恢復）"
+                context.getString(R.string.notification_status_schedule_suspended, enabledScheduleCount)
             else ->
-                "排程 $enabledScheduleCount 項"
+                context.getString(R.string.notification_status_schedule_count, enabledScheduleCount)
         }
 
         val content = when {
             backgroundWorkCount > 0 && scheduleShort != null ->
-                "背景處理中 · $scheduleShort"
+                context.getString(R.string.notification_status_background_with_schedule, scheduleShort)
             backgroundWorkCount > 0 ->
-                "背景處理中"
+                context.getString(R.string.notification_status_background_only)
             scheduleShort != null ->
                 scheduleShort
             else -> ""
@@ -116,10 +116,10 @@ object SchedulerStatusNotification {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "OpenRing 狀態",
+            context.getString(R.string.notification_channel_status_name),
             NotificationManager.IMPORTANCE_DEFAULT
         ).apply {
-            description = "排程與背景處理狀態"
+            description = context.getString(R.string.notification_channel_status_description)
             setShowBadge(false)
         }
         manager.createNotificationChannel(channel)

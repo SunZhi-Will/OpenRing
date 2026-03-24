@@ -86,7 +86,7 @@ class OverlayService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "OpenRing 執行中",
+                getString(R.string.notification_channel_running_name),
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply { setShowBadge(false) }
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
@@ -208,7 +208,11 @@ class OverlayService : Service() {
         val icon = root.findViewById<ImageView>(R.id.overlay_icon) ?: return
         val aiRunning = !activeSessionId.isNullOrBlank()
         icon.alpha = if (aiRunning) 1f else 0.92f
-        icon.contentDescription = if (aiRunning) "OpenRing AI 執行中，點擊可中斷" else "OpenRing 執行中"
+        icon.contentDescription = if (aiRunning) {
+            getString(R.string.overlay_desc_ai_running)
+        } else {
+            getString(R.string.overlay_desc_running)
+        }
     }
 
     private fun hideOverlay() {

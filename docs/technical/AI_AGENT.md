@@ -22,6 +22,16 @@ This document describes the **chat-driven automation agent** layer: how the app 
 
 Chat prompts for local models are formatted per family in `LocalLlmChatPrompt` (e.g. ChatML for Qwen, Phi-3–style markers, Gemma 2 turn tags, TinyLlama-style blocks).
 
+## 2b. Settings index
+
+Use this section as a quick map when configuring the agent stack:
+
+- API keys and model chain: `ModelStore`, `ApiKeyStore`, Settings model entries.
+- Permission hub UI: `PermissionsScreen.kt` (entry from `SettingsScreen.kt` and Chat menu).
+- Skill trust and allowlists: skills UI + runtime policy in `SKILLS.md`.
+- Local model catalog/downloads: `LocalModelCatalog.kt`, `LocalModelDownloader.kt`.
+- Audio capture path (internal playback vs mic fallback): `PlaybackAudioCapture.kt`, `AmbientAudioCapture.kt`.
+
 ---
 
 ## 3. Tooling (Gemini function calling)
@@ -96,3 +106,13 @@ Implementation: `PermissionsScreen.kt`, `MediaProjectionSession.kt`, `MediaProje
 - **Skills** (`call_skill` / `skill_*`) use the same `ToolDispatcher` names as Gemini; the local JSON agent can call them if the model outputs valid `tool_calls`.
 
 For skills packaging and QuickJS behavior, see [SKILLS.md](SKILLS.md) and [skill-templates/README.md](../skill-templates/README.md).
+
+## 7. Capability matrix (Gemini vs Local GGUF path)
+
+| Capability | Gemini path | Local GGUF path |
+|------------|-------------|-----------------|
+| ReAct tool loop | Native function-calling loop (`ReActCoordinator`) | JSON-in-text loop (`LocalReActCoordinator`) |
+| Vision (`describe_screen`) | Supported (requires Gemini key) | Not natively available; tool still requires Gemini key |
+| Audio understanding (`describe_ambient_audio`) | Supported (Gemini + permissions) | Tool can be requested, but still depends on Gemini API |
+| Streaming chat | Supported | Supported |
+| Offline text chat | Not applicable (cloud) | Supported after local model download |

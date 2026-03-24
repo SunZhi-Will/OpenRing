@@ -225,7 +225,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
                 title = { Text(stringResource(R.string.permission_settings_screen_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 }
             )
@@ -241,7 +241,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
         ) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                "在此查看並開啟系統權限。從其他畫面返回時會自動更新狀態。",
+                stringResource(R.string.permissions_intro),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -293,16 +293,16 @@ fun PermissionsScreen(onBack: () -> Unit) {
             )
 
             PermissionCard(
-                title = "麥克風（聽覺／環境音）",
+                title = stringResource(R.string.permission_microphone_title),
                 summary = if (micGranted) {
-                    "已允許：Agent 工具 describe_ambient_audio 可短錄音並由 Gemini 理解語音或提示音（例如聽音配對）。"
+                    stringResource(R.string.permission_microphone_summary_on)
                 } else {
-                    "未允許：無法使用聽覺工具；若題目依賴聲音，請先允許麥克風。"
+                    stringResource(R.string.permission_microphone_summary_off)
                 },
                 statusContentDescription = if (micGranted) {
-                    "麥克風權限狀態：已允許"
+                    stringResource(R.string.permission_microphone_status_on)
                 } else {
-                    "麥克風權限狀態：未允許"
+                    stringResource(R.string.permission_microphone_status_off)
                 },
                 leadingIcon = {
                     Icon(
@@ -311,7 +311,7 @@ fun PermissionsScreen(onBack: () -> Unit) {
                         tint = MaterialTheme.colorScheme.primary
                     )
                 },
-                actionLabel = if (micGranted) "前往設定" else "允許麥克風",
+                actionLabel = if (micGranted) stringResource(R.string.permission_go_to_settings) else stringResource(R.string.permission_microphone_allow),
                 onAction = {
                     if (!micGranted && activity != null) {
                         requestRecordAudio.launch(Manifest.permission.RECORD_AUDIO)
@@ -319,25 +319,25 @@ fun PermissionsScreen(onBack: () -> Unit) {
                         openAppDetailsSettings()
                     }
                 },
-                actionContentDescription = if (micGranted) "前往設定：應用程式權限" else "請求麥克風權限"
+                actionContentDescription = if (micGranted) stringResource(R.string.permission_action_open_app_permissions) else stringResource(R.string.permission_action_request_microphone)
             )
 
             PermissionCard(
-                title = "手機播放音訊（內部混音）",
+                title = stringResource(R.string.permission_device_audio_title),
                 summary = when {
                     Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ->
-                        "需要 Android 10 以上才能擷取他 App 從裝置播出的聲音。"
+                        stringResource(R.string.permission_device_audio_summary_unsupported)
                     devicePlaybackActive ->
-                        "已啟用：describe_ambient_audio 會優先錄內部播放（與螢幕錄製相同授權）；可點「停止擷取」結束。"
+                        stringResource(R.string.permission_device_audio_summary_active)
                     !micGranted ->
-                        "請先允許上一項「麥克風」，再回來按「授權擷取」完成系統對話框。"
+                        stringResource(R.string.permission_device_audio_summary_need_mic)
                     else ->
-                        "未啟用：按「授權擷取」後會出現系統提示與前台通知（Android 14+ 規定）。"
+                        stringResource(R.string.permission_device_audio_summary_inactive)
                 },
                 statusContentDescription = if (devicePlaybackActive) {
-                    "裝置播放音訊擷取：已啟用"
+                    stringResource(R.string.permission_device_audio_status_on)
                 } else {
-                    "裝置播放音訊擷取：未啟用"
+                    stringResource(R.string.permission_device_audio_status_off)
                 },
                 leadingIcon = {
                     Icon(
@@ -347,10 +347,10 @@ fun PermissionsScreen(onBack: () -> Unit) {
                     )
                 },
                 actionLabel = when {
-                    Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> "了解"
-                    devicePlaybackActive -> "停止擷取"
-                    !micGranted -> "先允許麥克風"
-                    else -> "授權擷取"
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> stringResource(R.string.permission_device_audio_action_learn)
+                    devicePlaybackActive -> stringResource(R.string.permission_device_audio_action_stop)
+                    !micGranted -> stringResource(R.string.permission_device_audio_action_allow_first_mic)
+                    else -> stringResource(R.string.permission_device_audio_action_authorize)
                 },
                 onAction = {
                     when {
@@ -376,23 +376,23 @@ fun PermissionsScreen(onBack: () -> Unit) {
                     }
                 },
                 actionContentDescription = when {
-                    devicePlaybackActive -> "停止裝置播放音訊擷取"
-                    Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> "開啟應用程式資訊"
-                    else -> "授權擷取裝置播放音訊"
+                    devicePlaybackActive -> stringResource(R.string.permission_device_audio_action_stop_desc)
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> stringResource(R.string.permission_device_audio_action_open_app_info)
+                    else -> stringResource(R.string.permission_device_audio_action_authorize_desc)
                 }
             )
 
             PermissionCard(
-                title = "懸浮窗（顯示在其他應用程式上層）",
+                title = stringResource(R.string.permission_overlay_title),
                 summary = if (overlayGranted) {
-                    "已開啟：AI 執行時可顯示懸浮中斷按鈕。"
+                    stringResource(R.string.permission_overlay_summary_on)
                 } else {
-                    "未開啟：無法顯示執行中的懸浮中斷按鈕。"
+                    stringResource(R.string.permission_overlay_summary_off)
                 },
                 statusContentDescription = if (overlayGranted) {
-                    "懸浮窗權限狀態：已開啟"
+                    stringResource(R.string.permission_overlay_status_on)
                 } else {
-                    "懸浮窗權限狀態：未開啟"
+                    stringResource(R.string.permission_overlay_status_off)
                 },
                 leadingIcon = {
                     Icon(
@@ -401,22 +401,22 @@ fun PermissionsScreen(onBack: () -> Unit) {
                         tint = MaterialTheme.colorScheme.primary
                     )
                 },
-                actionLabel = "前往設定",
+                actionLabel = stringResource(R.string.permission_go_to_settings),
                 onAction = { openOverlaySettings() },
-                actionContentDescription = "前往設定：懸浮窗權限"
+                actionContentDescription = stringResource(R.string.permission_overlay_action_desc)
             )
 
             PermissionCard(
-                title = "無障礙服務",
+                title = stringResource(R.string.permission_accessibility_title),
                 summary = if (accessibilityEnabled) {
-                    "已開啟：OpenRing 可使用無障礙服務執行畫面操作（依功能需求）。"
+                    stringResource(R.string.permission_accessibility_summary_on)
                 } else {
-                    "未開啟：請在無障礙設定中啟用 OpenRing。"
+                    stringResource(R.string.permission_accessibility_summary_off)
                 },
                 statusContentDescription = if (accessibilityEnabled) {
-                    "無障礙服務狀態：已開啟"
+                    stringResource(R.string.permission_accessibility_status_on)
                 } else {
-                    "無障礙服務狀態：未開啟"
+                    stringResource(R.string.permission_accessibility_status_off)
                 },
                 leadingIcon = {
                     Icon(
@@ -425,9 +425,9 @@ fun PermissionsScreen(onBack: () -> Unit) {
                         tint = MaterialTheme.colorScheme.primary
                     )
                 },
-                actionLabel = "前往設定",
+                actionLabel = stringResource(R.string.permission_go_to_settings),
                 onAction = { openAccessibilitySettings() },
-                actionContentDescription = "前往設定：無障礙服務"
+                actionContentDescription = stringResource(R.string.permission_accessibility_action_desc)
             )
         }
     }

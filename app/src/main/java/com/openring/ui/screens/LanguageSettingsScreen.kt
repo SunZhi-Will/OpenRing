@@ -13,18 +13,24 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.openring.R
+import com.openring.ui.i18n.AppLanguageManager
 import com.openring.ui.theme.Spacing
-import java.util.Locale
+import androidx.activity.ComponentActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,10 +38,7 @@ fun LanguageSettingsScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val locale = LocalConfiguration.current.locales.get(0) ?: Locale.getDefault()
-    val languageLabel = locale.displayName.replaceFirstChar { c ->
-        if (c.isLowerCase()) c.titlecase(locale) else c.toString()
-    }
+    var isEnglishSelected by remember { mutableStateOf(AppLanguageManager.isEnglishSelected(context)) }
 
     Scaffold(
         topBar = {
@@ -60,13 +63,40 @@ fun LanguageSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             Text(
-                text = stringResource(R.string.language_settings_follow_system),
+                text = stringResource(R.string.language_settings_intro),
                 style = MaterialTheme.typography.bodyLarge
             )
-            Text(
-                text = stringResource(R.string.language_settings_current_locale, languageLabel),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.language_settings_option_english)) },
+                supportingContent = { Text(stringResource(R.string.language_settings_option_english_subtitle)) },
+                leadingContent = {
+                    RadioButton(
+                        selected = isEnglishSelected,
+                        onClick = {
+                            if (!isEnglishSelected) {
+                                AppLanguageManager.setSelectedLanguage(context, "en")
+                                isEnglishSelected = true
+                                (context as? ComponentActivity)?.recreate()
+                            }
+                        }
+                    )
+                }
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.language_settings_option_zh_tw)) },
+                supportingContent = { Text(stringResource(R.string.language_settings_option_zh_tw_subtitle)) },
+                leadingContent = {
+                    RadioButton(
+                        selected = !isEnglishSelected,
+                        onClick = {
+                            if (isEnglishSelected) {
+                                AppLanguageManager.setSelectedLanguage(context, "zh-TW")
+                                isEnglishSelected = false
+                                (context as? ComponentActivity)?.recreate()
+                            }
+                        }
+                    )
+                }
             )
             Button(
                 onClick = {
@@ -81,7 +111,7 @@ fun LanguageSettingsScreen(
                     }
                 }
             ) {
-                Text(stringResource(R.string.language_settings_open_system))
+                Text(stringResource(R.string.language_settings_open_system_button))
             }
         }
     }

@@ -268,7 +268,7 @@
 
 ### 8.1 技術依賴
 
-- **Android**：Kotlin 1.9+, minSdk 26, targetSdk 34
+- **Android**：Kotlin 2.3.10, minSdk 26, targetSdk 34, compileSdk 36, Build-Tools 36.0.0
 - **儲存**：Room 或 DataStore
 - **排程**：WorkManager
 - **UI**：Jetpack Compose 或 XML（擇一）
@@ -283,12 +283,18 @@
 
 ## 9. 交付清單 (Definition of Done)
 
-- [ ] 程式碼通過 Lint / 格式化
-- [ ] 關鍵路徑有單元測試
+- [ ] 程式碼通過格式化（Lint gate 目前因工具穩定性暫時關閉，待恢復後重新納入）
+- [ ] 關鍵路徑有單元測試（目前為目標項，現況以手動驗證 + build 為主）
 - [ ] 敏感節點過濾通過人工驗證
 - [ ] 執行時有明顯狀態指示
 - [ ] README 含安裝與基本使用說明
 - [ ] 無已知 P0/P1 Bug
+
+### 9.1 文件同步策略
+
+- 每次更新建置版本（Kotlin / SDK / build tools）時，同步更新 `README.md`、`README.zh-TW.md`、`docs/technical/CI_CD.md`。
+- 若 CI 的品質閘門變更（例如 lint/test 啟閉），需同步更新 `docs/technical/CI_CD.md` 與本章 DoD 說明。
+- 當產品能力（Agent/tool/permission flow）變更時，同步更新 `docs/technical/AI_AGENT.md` 與 `docs/technical/SCRIPT_FORMAT.md`。
 
 ---
 
@@ -599,7 +605,7 @@ OpenRing/
 
 ### 8.1 Technical Dependencies
 
-- **Android**: Kotlin 1.9+, minSdk 26, targetSdk 34
+- **Android**: Kotlin 2.3.10, minSdk 26, targetSdk 34, compileSdk 36, Build-Tools 36.0.0
 - **Storage**: Room or DataStore
 - **Scheduling**: WorkManager
 - **UI**: Jetpack Compose or XML (choose one)
@@ -614,12 +620,18 @@ OpenRing/
 
 ## 9. Definition of Done
 
-- [ ] Code passes Lint / formatting
-- [ ] Critical paths have unit tests
+- [ ] Code passes formatting (lint gate is temporarily disabled due to tooling stability issues; to be re-enabled)
+- [ ] Critical paths have unit tests (target state; current baseline is build + manual validation)
 - [ ] Sensitive node filtering passes manual verification
 - [ ] Obvious status indicators during execution
 - [ ] README includes installation and basic usage instructions
 - [ ] No known P0/P1 bugs
+
+### 9.1 Documentation Sync Policy
+
+- When build versions change (Kotlin / SDK / build tools), update `README.md`, `README.zh-TW.md`, and `docs/technical/CI_CD.md` together.
+- When CI quality gates change (e.g., lint/test enabled or disabled), update `docs/technical/CI_CD.md` and this DoD section in the same change.
+- When product capability changes (agent/tool/permission flows), update `docs/technical/AI_AGENT.md` and `docs/technical/SCRIPT_FORMAT.md` together.
 
 ---
 

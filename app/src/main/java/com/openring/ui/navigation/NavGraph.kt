@@ -12,6 +12,7 @@ import com.openring.ui.screens.HistoryScreen
 import com.openring.ui.screens.ScriptEditorScreen
 import com.openring.ui.screens.ScriptListScreen
 import com.openring.ui.screens.SettingsScreen
+import com.openring.ui.screens.SettingsScreenMode
 import com.openring.ui.screens.AiSettingsScreen
 import com.openring.ui.screens.AutoScanScreen
 import com.openring.ui.screens.MoralityEditScreen
@@ -36,6 +37,7 @@ sealed class Screen(val route: String) {
     data object EditSystemPrompt : Screen("ai/edit_system_prompt")
     data object EditMoralityPolicy : Screen("ai/edit_morality_policy")
     data object AutoScan : Screen("ai/auto_scan")
+    data object AiModelSettings : Screen("ai/model_settings")
     data object LanguageSettings : Screen("app/language_settings")
 }
 
@@ -65,6 +67,7 @@ fun OpenRingNavHost(
                 onEditSystemPrompt = { navController.navigate(Screen.EditSystemPrompt.route) },
                 onEditMoralityPolicy = { navController.navigate(Screen.EditMoralityPolicy.route) },
                 onNavigateToSkills = { navController.navigate(Screen.Skills.route) },
+                onNavigateToAiModelSettings = { navController.navigate(Screen.AiModelSettings.route) },
                 onNavigateToAutoScan = { navController.navigate(Screen.AutoScan.route) }
             )
         }
@@ -85,6 +88,13 @@ fun OpenRingNavHost(
                 onBack = { navController.popBackStack() },
                 onNavigateToLanguageSettings = { navController.navigate(Screen.LanguageSettings.route) },
                 onNavigateToPermissionSettings = { navController.navigate(Screen.Permissions.route) },
+                screenMode = SettingsScreenMode.GENERAL
+            )
+        }
+        composable(Screen.AiModelSettings.route) {
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+                screenMode = SettingsScreenMode.AI_MODEL
             )
         }
         composable(Screen.Permissions.route) {

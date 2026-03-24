@@ -26,6 +26,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.openring.R
 import com.openring.settings.AutoScanStore
 import com.openring.ui.theme.Spacing
 import com.openring.worker.ScanScheduler
@@ -47,10 +49,10 @@ fun AutoScanScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("自動掃描") },
+                title = { Text(stringResource(R.string.auto_scan_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 }
             )
@@ -68,7 +70,7 @@ fun AutoScanScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("啟用自動掃描", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.auto_scan_enable), style = MaterialTheme.typography.titleMedium)
                 Switch(
                     checked = enabled,
                     onCheckedChange = {
@@ -79,12 +81,12 @@ fun AutoScanScreen(
                 )
             }
             Text(
-                "背景定期取得目前畫面並快取，AI 可透過 get_cached_scan 讀取。無障礙服務需已啟用。",
+                stringResource(R.string.auto_scan_description),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(Spacing.sm))
-            Text("間隔（分鐘）", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.auto_scan_interval_minutes), style = MaterialTheme.typography.titleSmall)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
@@ -102,7 +104,7 @@ fun AutoScanScreen(
                 }
             }
             Text(
-                "系統週期下限約 15 分鐘",
+                stringResource(R.string.auto_scan_min_limit),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

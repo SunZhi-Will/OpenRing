@@ -41,8 +41,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import com.openring.R
 import com.openring.agent.ChatLogEntry
 import com.openring.agent.ExecutionLogStore
 import com.openring.ui.theme.Spacing
@@ -72,13 +74,14 @@ private fun previewJsonObject(
     return head + suffix
 }
 
+@Composable
 private fun previewToolResult(result: JsonObject): Pair<String?, String?> {
     val ok = (result["ok"] as? JsonPrimitive)?.content?.toBooleanStrictOrNull()
     val code = (result["code"] as? JsonPrimitive)?.content
     val message = (result["message"] as? JsonPrimitive)?.content
-    if (ok == true) return "成功" to null
+    if (ok == true) return stringResource(R.string.execution_log_status_success) to null
     val msgShort = message?.take(60)
-    return "失敗" to listOfNotNull(code, msgShort).joinToString(": ")
+    return stringResource(R.string.execution_log_status_failed) to listOfNotNull(code, msgShort).joinToString(": ")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -91,10 +94,10 @@ fun ExecutionLogScreen(onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("執行 Log") },
+                title = { Text(stringResource(R.string.execution_log_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
                 actions = {
@@ -102,11 +105,11 @@ fun ExecutionLogScreen(onBack: () -> Unit) {
                         onClick = {
                             val payload = ExecutionLogStore.snapshotAsJsonArray().toString()
                             clipboard.setText(AnnotatedString(payload))
-                            Toast.makeText(context, "已複製全部 JSON", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.execution_log_copied_all), Toast.LENGTH_SHORT).show()
                         },
                         enabled = entries.isNotEmpty()
                     ) {
-                        Text("全部複製 JSON")
+                        Text(stringResource(R.string.execution_log_copy_all_json))
                     }
                 }
             )
@@ -128,7 +131,7 @@ fun ExecutionLogScreen(onBack: () -> Unit) {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "目前沒有執行 log。",
+                        text = stringResource(R.string.execution_log_empty),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -153,7 +156,7 @@ fun ExecutionLogScreen(onBack: () -> Unit) {
                             entry = entry,
                             onCopyEntryJson = { json ->
                                 clipboard.setText(AnnotatedString(json))
-                                Toast.makeText(context, "已複製 JSON", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.execution_log_copied_json), Toast.LENGTH_SHORT).show()
                             }
                         )
                     }
@@ -189,12 +192,12 @@ private fun LogEntryCard(
         }
 
     val title = when (entry) {
-        is ChatLogEntry.Text -> "訊息"
-        is ChatLogEntry.ToolCall -> "tool_call: ${entry.toolName}"
+        is ChatLogEntry.Text -> stringResource(R.string.execution_log_entry_message)
+        is ChatLogEntry.ToolCall -> stringResource(R.string.execution_log_tool_call, entry.toolName)
         is ChatLogEntry.ToolResult -> {
             val (status, detail) = previewToolResult(entry.result)
-            if (detail.isNullOrBlank()) "tool_result: ${entry.toolName} (${status})"
-            else "tool_result: ${entry.toolName} (${status})"
+            if (detail.isNullOrBlank()) stringResource(R.string.execution_log_tool_result, entry.toolName, status ?: "")
+            else stringResource(R.string.execution_log_tool_result, entry.toolName, status ?: "")
         }
     }
 
@@ -255,12 +258,16 @@ private fun LogEntryCard(
 
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     TextButton(onClick = { onCopyEntryJson(jsonToCopy) }) {
-                        Text("複製 JSON")
+                        Text(stringResource(R.string.execution_log_copy_json))
                     }
                     IconButton(onClick = { expanded = !expanded }) {
                         Icon(
                             if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                            contentDescription = if (expanded) "收合" else "展開"
+                            contentDescription = if (expanded) {
+                                stringResource(R.string.execution_log_collapse)
+                            } else {
+                                stringResource(R.string.execution_log_expand)
+                            }
                         )
                     }
                 }

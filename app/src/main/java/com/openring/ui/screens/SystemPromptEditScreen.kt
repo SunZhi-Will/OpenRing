@@ -17,6 +17,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.openring.R
 import com.openring.settings.AiPromptStore
 import com.openring.ui.theme.Spacing
 
@@ -32,7 +34,7 @@ fun SystemPromptEditScreen(
     }
 
     TextSettingEditorScreen(
-        title = "System Prompt",
+        title = stringResource(R.string.ai_settings_system_prompt_title),
         initialValue = store.getSystemPrompt(),
         headerContent = {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -44,10 +46,10 @@ fun SystemPromptEditScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("允許 AI 修改 System Prompt", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.system_prompt_allow_ai_modify_title), style = MaterialTheme.typography.titleSmall)
                         Spacer(Modifier.padding(top = Spacing.xs))
                         Text(
-                            "開啟後，AI 可透過 set_system_prompt 工具更新系統指令",
+                            stringResource(R.string.system_prompt_allow_ai_modify_subtitle),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -61,7 +63,7 @@ fun SystemPromptEditScreen(
                     )
                 }
                 Text(
-                    "建議只在你信任的使用情境下開啟。",
+                    stringResource(R.string.system_prompt_allow_ai_modify_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

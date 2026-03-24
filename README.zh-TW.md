@@ -103,7 +103,8 @@ OpenRing/
 ### 1. 開發環境需求
 - [Android Studio Jellyfish](https://developer.android.com/studio) 或更新版本
 - Java Development Kit (JDK) 17+
-- Android SDK (API Level 34)
+- Android SDK Platform 36 與 Build-Tools 36.0.0
+- 執行驗證建議使用 targetSdk 34 的裝置或模擬器
 
 ### 2. 複製專案
 ```bash
@@ -118,6 +119,13 @@ cd OpenRing
 ```
 
 除錯版 APK 會輸出到 `app/build/outputs/apk/debug/`（常見檔名為 `app-debug.apk`）。
+
+### 4. 驗證與測試現況
+
+- 目前 CI 基線為 `./gradlew assembleDebug`，並搭配 CodeQL 與相依性安全檢查。
+- 目前專案尚未提交 `app/src/test` 與 `app/src/androidTest` 自動化測試目錄。
+- 當前品質驗證以可成功建置 + 裝置/模擬器手動驗證為主。
+- 由於部分環境下 AGP lint 工具本身會崩潰，lint tasks 目前暫時停用；請見 `docs/technical/CI_CD.md`。
 
 #### 下載預先建置的除錯版 APK（CI）
 
@@ -146,6 +154,12 @@ Release 頁面：[SunZhi-Will/OpenRing Releases](https://github.com/SunZhi-Will/
 ---
 
 ## 📚 文件導覽
+
+### 依使用情境快速入口
+
+- **一般使用者**：`README.zh-TW.md`、`docs/product/PRD.md`
+- **貢獻者**：`CONTRIBUTING.md`、`docs/technical/CI_CD.md`、`CHANGELOG.md`
+- **開發者**：`docs/technical/AI_AGENT.md`、`docs/technical/SKILLS.md`、`docs/technical/SCRIPT_FORMAT.md`、`docs/product/PROJECT_PLAN.md`
 
 | 文件名稱                                                | 說明                                                                                 |
 | ------------------------------------------------------- | ------------------------------------------------------------------------------------ |

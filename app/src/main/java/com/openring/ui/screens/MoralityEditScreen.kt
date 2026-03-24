@@ -28,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.openring.R
 import com.openring.settings.AiPromptStore
 import com.openring.settings.MoralityStore
 import com.openring.ui.theme.Spacing
@@ -53,14 +55,14 @@ fun MoralityEditScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("道德") },
+                title = { Text(stringResource(R.string.morality_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.common_back))
                     }
                 },
                 actions = {
-                    Button(onClick = { save() }) { Text("儲存") }
+                    Button(onClick = { save() }) { Text(stringResource(R.string.save)) }
                 }
             )
         }
@@ -78,14 +80,14 @@ fun MoralityEditScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("道德鎖", style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.morality_lock_title), style = MaterialTheme.typography.titleSmall)
                 Switch(
                     checked = lockEnabled,
                     onCheckedChange = { lockEnabled = it }
                 )
             }
             Text(
-                if (lockEnabled) "已啟用（建議）" else "已停用（風險）",
+                if (lockEnabled) stringResource(R.string.morality_lock_enabled) else stringResource(R.string.morality_lock_disabled),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -94,7 +96,7 @@ fun MoralityEditScreen(
                 onValueChange = { promptText = it },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 12,
-                label = { Text("道德 Prompt") }
+                label = { Text(stringResource(R.string.morality_prompt_label)) }
             )
         }
     }
