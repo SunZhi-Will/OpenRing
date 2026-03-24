@@ -85,14 +85,20 @@ class ReActCoordinator(
                 )
             }
             if (isDuolingoRequest(userText) && SkillEnabledStore(context).isEnabled("duolingo_word_match_guard")) {
+                val duolingoHint = buildString {
+                    append(
+                        "For Duolingo word-match tasks, prioritize skill_duolingo_word_match_guard (or call_skill with duolingo_word_match_guard) for deterministic target selection before any click."
+                    )
+                    if (isDuolingoAudioHeavyRequest(userText)) {
+                        append(
+                            " For listen/sound-match exercises, call describe_ambient_audio: enable **phone playback audio** (MediaProjection, same as screen recording) in OpenRing Permissions so capture uses internal app audio, not only the mic; still allow RECORD_AUDIO."
+                        )
+                    }
+                }
                 add(
                     Content(
                         role = "user",
-                        parts = listOf(
-                            Part(
-                                text = "For Duolingo word-match tasks, prioritize skill_duolingo_word_match_guard (or call_skill with duolingo_word_match_guard) for deterministic target selection before any click."
-                            )
-                        )
+                        parts = listOf(Part(text = duolingoHint))
                     )
                 )
             }
@@ -138,6 +144,7 @@ class ReActCoordinator(
         val standbySeenKeys = mutableSetOf<String>()
         val sentHistory = ArrayDeque<String>()
         var visionUnavailable = false
+        var audioUnavailable = false
 
         var rounds = 0
         while (rounds < roundLimit) {
@@ -314,6 +321,12 @@ class ReActCoordinator(
                         code = "VISION_UNAVAILABLE",
                         message = "describe_screen is unavailable on this device/session. Use summarize_view_tree or get_view_tree instead."
                     )
+                } else if (call.name == "describe_ambient_audio" && audioUnavailable) {
+                    ToolDispatcher.ToolResult(
+                        ok = false,
+                        code = "AUDIO_UNAVAILABLE",
+                        message = "describe_ambient_audio is unavailable on this device/session (recording failed earlier). Use view tree / describe_screen only."
+                    )
                 } else if (waitingIncomingReply && (call.name in inputTools || call.name == "click_send_button")) {
                     ToolDispatcher.ToolResult(
                         ok = false,
@@ -369,6 +382,9 @@ class ReActCoordinator(
                 }
                 if (call.name == "describe_screen" && !toolResultForModel.ok && toolResultForModel.code == "SCREENSHOT_UNAVAILABLE") {
                     visionUnavailable = true
+                }
+                if (call.name == "describe_ambient_audio" && !toolResultForModel.ok && toolResultForModel.code == "AUDIO_RECORD_FAILED") {
+                    audioUnavailable = true
                 }
 
                 if (toolResultForModel.ok && call.name == "click_send_button") {
@@ -513,6 +529,13 @@ class ReActCoordinator(
     private fun isDuolingoRequest(text: String): Boolean {
         val t = text.lowercase()
         return t.contains("duolingo") || t.contains("多鄰國")
+    }
+
+    private fun isDuolingoAudioHeavyRequest(text: String): Boolean {
+        val t = text.lowercase()
+        return t.contains("聲音") || t.contains("聽力") || t.contains("聽音") || t.contains("音訊") ||
+            t.contains("音效") || t.contains("發音") ||
+            t.contains("audio") || t.contains("sound") || t.contains("listen") || t.contains("hearing")
     }
 
     private fun isOfficialSkillRequest(text: String): Boolean {

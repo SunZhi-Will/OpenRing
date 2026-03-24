@@ -3,7 +3,8 @@
 # OpenRing WebSocket 通訊協定
 
 > **已棄用** — 純手機端架構下不再使用。保留供未來「電腦遠端控制」擴充參考。  
-> 腳本格式請參考 [SCRIPT_FORMAT.md](SCRIPT_FORMAT.md)。
+> 腳本格式請參考 [SCRIPT_FORMAT.md](SCRIPT_FORMAT.md)。  
+> 裝置端**權限**與 Agent 工具（含 `describe_ambient_audio`、**設定 → 權限設定**）請見專案 [README.md](../../README.md) 與 [AI_AGENT.md](AI_AGENT.md)。
 
 ---
 

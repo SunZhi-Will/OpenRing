@@ -37,4 +37,5 @@ Producing a **signed release APK or AAB** in CI requires **keystore secrets** (e
 
 ## See also
 
-- [AI_AGENT.md](AI_AGENT.md) — chat agent, tools, and on-device GGUF overview (not CI-specific).
+- [AI_AGENT.md](AI_AGENT.md) — chat agent, tools, on-device GGUF, and **Permission settings** overview (not CI-specific).
+- [README.md](../../README.md) — **Permission settings** table and getting started.

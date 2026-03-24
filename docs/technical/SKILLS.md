@@ -214,4 +214,4 @@ Execution path:
 
 - `docs/skill-templates/README.md` for authoring templates and examples
 - `docs/skill-templates/duolingo_word_match_guard/` for a deterministic external skill example targeting Duolingo word-match tasks
-- `docs/technical/AI_AGENT.md` for end-to-end tool orchestration context
+- `docs/technical/AI_AGENT.md` for end-to-end tool orchestration context (includes `describe_ambient_audio` and in-app **Permission settings**)

@@ -6,6 +6,9 @@
     <string name="ai_settings_title">AI 設定</string>
     <string name="settings_language_title">語言</string>
     <string name="settings_language_subtitle">自動跟隨 Android 系統語言</string>
+    <string name="settings_permissions_title">權限設定</string>
+    <string name="settings_permissions_subtitle">通知、麥克風、手機播放音訊、懸浮窗、無障礙</string>
+    <string name="permission_settings_screen_title">權限設定</string>
     <string name="language_settings_title">語言設定</string>
     <string name="language_settings_follow_system">OpenRing 目前會自動跟隨你的 Android 系統語言。</string>
     <string name="language_settings_current_locale">目前語言：%1$s</string>
@@ -28,6 +31,9 @@
     <string name="notification_ai_running_hint">開啟 App 或停止本次執行</string>
     <string name="notification_action_stop_run">停止</string>
     <string name="notification_overlay_running">懸浮提示 · 點鸚鵡可停止 AI</string>
+    <string name="notification_channel_media_projection_name">裝置播放音訊</string>
+    <string name="notification_media_projection_title">OpenRing · 裝置播放音訊</string>
+    <string name="notification_media_projection_text">MediaProjection 運行中，用於擷取其他 App 的播放聲音（與螢幕錄製相同授權）。</string>
     <string name="permission_notifications_title">通知</string>
     <string name="permission_notifications_granted_summary">已允許：排程狀態、AI 執行與常駐排程等通知可正常顯示。</string>
     <string name="permission_notifications_denied_summary">未允許：Android 13 起若未授權，OpenRing 無法顯示狀態與操作通知。請點「允許通知」。</string>

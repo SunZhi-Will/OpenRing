@@ -41,8 +41,10 @@ class Scheduler(private val context: Context) {
     /**
      * 排程腳本
      */
-    fun scheduleScript(scriptId: String, schedule: Schedule) {
-        cancelScript(scriptId)
+    fun scheduleScript(scriptId: String, schedule: Schedule, cancelExisting: Boolean = true) {
+        if (cancelExisting) {
+            cancelScript(scriptId)
+        }
         if (!schedule.enabled || schedule.type == "disabled") return
 
         when (schedule.mode) {

@@ -9,6 +9,7 @@
 - 安裝後若 skill 啟用，系統會讀取 `SKILL.md`（去除 frontmatter 後內容）注入到模型 system guidance。
 - `name` 會正規化成 canonical `skillId`，動態工具名為 `skill_<skillId>`。
 - `outputSchema` 目前仍為文件契約，執行期僅強制回傳必須是 JSON object。
+- Agent **聽覺**（`describe_ambient_audio`）與 **MediaProjection／麥克風** 等權限說明見專案 README 與 `docs/technical/AI_AGENT.md`（App 內 **設定 → 權限設定**）。
 
 ---
 
@@ -19,6 +20,8 @@
 OpenRing Skill Plugins empower the **chat agent** (Gemini with function calling / ReAct inside the app) with **deterministic logic, custom integrations, and data processing** capabilities. On-device GGUF chat does not invoke the same tool loop; Skills are used when the **Gemini** path calls `call_skill` / `skill_*`. Since the agent's context window is limited and LLMs can hallucinate logic, Skills provide local sandboxed code (running on QuickJS) that the Agent can call reliably.
 
 This directory contains templates to help developers and users build Skills for the OpenRing ecosystem.
+
+For **agent hearing** (`describe_ambient_audio`) and **MediaProjection / microphone** permissions, see the project **README** and **`docs/technical/AI_AGENT.md`** (in-app **Settings → Permission settings**).
 
 ---
 

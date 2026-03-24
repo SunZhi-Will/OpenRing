@@ -1,7 +1,14 @@
 package com.openring.agent
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
 import com.openring.gemini.GeminiRestClient
+import com.openring.core.AmbientAudioCapture
+import com.openring.core.MediaProjectionSession
+import com.openring.core.PlaybackAudioCapture
 import com.openring.core.InstalledAppsProvider
 import com.openring.core.IntentRouter
 import com.openring.core.OpenRingAccessibilityService
@@ -23,6 +30,7 @@ import com.openring.skills.SkillInstall
 import com.openring.skills.SkillQuickJsExecutor
 import com.openring.skills.SkillTemplateCatalog
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -86,6 +94,10 @@ class ToolDispatcher(
             name.startsWith("memory_") -> {
                 return dispatchMemoryTool(name, args)
             }
+        }
+
+        if (name == "describe_ambient_audio") {
+            return dispatchDescribeAmbientAudio(args)
         }
 
         val service = OpenRingAccessibilityService.getInstance()
@@ -950,6 +962,106 @@ class ToolDispatcher(
     private fun captureUiFingerprint(service: OpenRingAccessibilityService): String? {
         val tree = service.getViewTree() ?: return null
         return UiTreeCompact.fingerprintUiText(viewNodeToJson(tree))
+    }
+
+    private fun dispatchDescribeAmbientAudio(args: JsonObject): ToolResult {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            return ToolResult(
+                false,
+                "RECORD_AUDIO_DENIED",
+                "需要 RECORD_AUDIO（內部播放擷取亦需要）。請在「權限」允許麥克風。"
+            )
+        }
+        val apiKey = ActiveChatContext.geminiApiKey
+        if (apiKey.isNullOrBlank()) {
+            return ToolResult(
+                false,
+                "NO_API_KEY",
+                "describe_ambient_audio 需要 Gemini API 金鑰。請在設定中為 Gemini 模型設定金鑰。"
+            )
+        }
+        val model = ActiveChatContext.geminiModel?.trim().orEmpty().ifBlank { "gemini-2.0-flash" }
+        val maxSec = args["maxDurationSeconds"]?.jsonPrimitive?.content
+            ?.toDoubleOrNull()
+            ?.toInt()
+            ?.coerceIn(1, 10)
+            ?: 6
+        val durationMs = maxSec * 1000L
+        val question = args["question"]?.jsonPrimitive?.content?.trim().orEmpty().ifBlank {
+            "You are helping an Android UI automation agent. Summarize this clip: transcribe any speech (if not English, give English gloss), note language, and any words/phrases useful for matching on-screen tiles. Be concise."
+        }
+
+        val projection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaProjectionSession.getProjection()
+        } else {
+            null
+        }
+        val playback = if (projection != null) {
+            runBlocking(Dispatchers.IO) {
+                PlaybackAudioCapture.recordWavBase64(projection, durationMs)
+            }
+        } else {
+            null
+        }
+
+        val wavB64: String
+        val micPlaybackFailed: Boolean
+        if (playback != null) {
+            wavB64 = playback.wavBase64
+            micPlaybackFailed = false
+        } else {
+            micPlaybackFailed = projection != null
+            wavB64 = runBlocking(Dispatchers.IO) {
+                AmbientAudioCapture.recordWavBase64(durationMs)
+            } ?: return ToolResult(
+                false,
+                "AUDIO_RECORD_FAILED",
+                buildString {
+                    append("無法取得音訊。")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && projection == null) {
+                        append("若要錄「手機內部播放」而非麥克風，請到「權限」完成「手機播放音訊」授權（與螢幕錄製相同）。")
+                    } else {
+                        append("請確認麥克風或縮短 maxDurationSeconds。")
+                    }
+                },
+            )
+        }
+
+        return try {
+            val text = geminiRest.describeAmbientAudioWithGemini(apiKey, model, wavB64, question)
+            ToolResult(
+                true,
+                data = buildJsonObject {
+                    put("description", text.take(12000))
+                    put("audioModel", model)
+                    put("recordedSeconds", maxSec)
+                    if (playback != null) {
+                        put("captureSource", "device_playback")
+                        put("sampleRate", playback.sampleRate)
+                        put("channels", playback.channels)
+                    } else {
+                        put("captureSource", "microphone")
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            if (micPlaybackFailed) {
+                                put("playbackCaptureFailed", true)
+                                put(
+                                    "hint",
+                                    "已授權裝置播放擷取但內部混音錄製失敗（對方 App 可能禁止擷取或當下無播放）。已改用麥克風。"
+                                )
+                            } else {
+                                put("hint", "尚未授權裝置播放擷取，目前為麥克風拾音；可到「權限」授權手機播放音訊。")
+                            }
+                        }
+                    }
+                },
+            )
+        } catch (e: Exception) {
+            ToolResult(
+                false,
+                "AUDIO_UNDERSTANDING_FAILED",
+                e.message?.take(500) ?: "Gemini 音訊理解失敗；請確認所用模型支援 audio/wav 多模態。"
+            )
+        }
     }
 }
 

@@ -18,7 +18,8 @@ assignees: ''
 如果有其他方法可以達成此目的，請在這裡列出。
 
 ## 📝 額外補充
-請在此處補充說明這個功能建議的任何其他背景、使用情境、設計稿等。
+請在此處補充說明這個功能建議的任何其他背景、使用情境、設計稿等。  
+若建議涉及自動化、懸浮窗、麥克風或手機播放音訊，請註明是否可接受引導使用者至 **設定 → 權限設定** 完成授權。
 
 ---
 
@@ -34,4 +35,5 @@ A clear and concise description of what you want to happen.
 A clear and concise description of any alternative solutions or features you've considered.
 
 ## 📝 Additional context
-Add any other context or screenshots about the feature request here.
+Add any other context or screenshots about the feature request here.  
+If the idea involves automation, overlay, microphone, or device playback audio, note whether guiding users through **Settings → Permission settings** for grants is acceptable.

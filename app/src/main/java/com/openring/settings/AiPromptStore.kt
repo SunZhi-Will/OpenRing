@@ -24,11 +24,21 @@ class AiPromptStore(context: Context) {
         prefs.edit().putBoolean(KEY_ALLOW_AI_SET_SYSTEM_PROMPT, allowed).apply()
     }
 
+    fun getMaxRounds(): Int = prefs.getInt(KEY_MAX_ROUNDS, DEFAULT_MAX_ROUNDS).coerceIn(MIN_MAX_ROUNDS, MAX_MAX_ROUNDS)
+
+    fun setMaxRounds(value: Int) {
+        prefs.edit().putInt(KEY_MAX_ROUNDS, value.coerceIn(MIN_MAX_ROUNDS, MAX_MAX_ROUNDS)).apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "openring_ai_prompt_prefs"
         private const val KEY_SYSTEM_PROMPT = "system_prompt"
         private const val KEY_MORALITY_POLICY = "morality_policy"
         private const val KEY_ALLOW_AI_SET_SYSTEM_PROMPT = "allow_ai_set_system_prompt"
+        private const val KEY_MAX_ROUNDS = "max_rounds"
+        private const val DEFAULT_MAX_ROUNDS = 30
+        private const val MIN_MAX_ROUNDS = 5
+        private const val MAX_MAX_ROUNDS = 300
 
         // Keep technical docs in English; UI in zh-TW.
         private const val DEFAULT_SYSTEM_PROMPT =

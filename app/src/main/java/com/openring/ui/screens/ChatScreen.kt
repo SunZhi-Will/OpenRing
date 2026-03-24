@@ -223,6 +223,9 @@ fun ChatScreen(
     var running by remember { mutableStateOf(false) }
     var runningSessionId by remember { mutableStateOf<String?>(null) }
     var overlayPermissionDialogText by remember { mutableStateOf<String?>(null) }
+    data class PermissionReminder(val title: String, val message: String)
+    var permissionReminder by remember { mutableStateOf<PermissionReminder?>(null) }
+    var permissionReminderShownThisRun by remember { mutableStateOf(false) }
     var processingText by remember { mutableStateOf("正在處理中…") }
     var hasEnabledSchedule by remember { mutableStateOf(false) }
     val backgroundWorkCount by BackgroundWorkTracker.activeCount.collectAsState(initial = 0)
@@ -368,16 +371,42 @@ fun ChatScreen(
 
             "tool_result" -> {
                 val ok = (turn.toolResult?.get("ok") as? JsonPrimitive)?.content?.toBooleanStrictOrNull()
+                val code = (turn.toolResult?.get("code") as? JsonPrimitive)?.content
+                val msg = (turn.toolResult?.get("message") as? JsonPrimitive)?.content
                 processingText = if (ok == true) {
                     "工具結果：$toolName（成功）"
                 } else {
-                    val code = (turn.toolResult?.get("code") as? JsonPrimitive)?.content
-                    val msg = (turn.toolResult?.get("message") as? JsonPrimitive)?.content
                     val detail = listOfNotNull(
                         code,
                         msg?.takeIf { it.isNotBlank() }
                     ).joinToString(" / ").take(80)
                     "工具結果：$toolName（失敗${if (detail.isNotBlank()) ": $detail" else ""}）"
+                }
+                if (ok != true && !permissionReminderShownThisRun) {
+                    permissionReminder = when {
+                        code == "RECORD_AUDIO_DENIED" -> {
+                            permissionReminderShownThisRun = true
+                            PermissionReminder(
+                                title = "需要麥克風權限",
+                                message = "偵測到目前未授權麥克風，無法使用聽覺相關功能。請到「權限設定」開啟後再試。"
+                            )
+                        }
+                        code == "PERMISSION_DENIED" && msg?.contains("AccessibilityService", ignoreCase = true) == true -> {
+                            permissionReminderShownThisRun = true
+                            PermissionReminder(
+                                title = "需要無障礙權限",
+                                message = "目前未啟用 OpenRing 無障礙服務，無法執行畫面操作。請前往「權限設定」開啟。"
+                            )
+                        }
+                        toolName == "describe_ambient_audio" && code == "AUDIO_RECORD_FAILED" -> {
+                            permissionReminderShownThisRun = true
+                            PermissionReminder(
+                                title = "音訊擷取需要權限",
+                                message = "無法取得音訊。請到「權限設定」確認麥克風與手機播放音訊（MediaProjection）授權狀態。"
+                            )
+                        }
+                        else -> null
+                    }
                 }
                 val resultObj = turn.toolResult ?: buildJsonObject { }
                 ExecutionLogStore.add(
@@ -396,6 +425,7 @@ fun ChatScreen(
         if (running || trimmed.isBlank() || !canRunChat) return
         processingText = "正在處理中…"
         running = true
+        permissionReminderShownThisRun = false
         val runSessionId = UUID.randomUUID().toString()
         runningSessionId = runSessionId
         RunCancellationRegistry.register(runSessionId)
@@ -442,6 +472,7 @@ fun ChatScreen(
                 val resultText = withContext(Dispatchers.IO) {
                     var lastError: String? = null
                     val aiPromptStore = AiPromptStore(context)
+                    val maxRounds = aiPromptStore.getMaxRounds()
                     for (opt in modelChain) {
                         when (opt.provider.lowercase()) {
                             "gemini" -> {
@@ -470,6 +501,7 @@ fun ChatScreen(
                                         model = opt.model,
                                         userText = userForModel,
                                         priorContents = priorContents,
+                                        maxRounds = maxRounds,
                                         shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
                                         onTurn = { turn ->
                                             scope.launch(Dispatchers.Main) { recordTurnToLog(turn) }
@@ -782,16 +814,6 @@ fun ChatScreen(
                             onDismissRequest = { moreMenuExpanded = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.menu_permissions_accessibility)) },
-                                onClick = {
-                                    moreMenuExpanded = false
-                                    onNavigateToPermissions()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Security, contentDescription = null)
-                                }
-                            )
-                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.menu_workflows)) },
                                 onClick = {
                                     moreMenuExpanded = false
@@ -1024,7 +1046,18 @@ fun ChatScreen(
                                     enabled = canSend || canCancel,
                                     onClick = {
                                         if (running && runningSessionId != null) {
+                                            RunCancellationRegistry.cancelAll()
                                             RunCancellationRegistry.cancel(runningSessionId!!)
+                                            AiRunNotification.cancel(context)
+                                            try {
+                                                context.startService(
+                                                    Intent(context, OverlayService::class.java).apply {
+                                                        action = OverlayService.ACTION_STOP_AI_RUN
+                                                    }
+                                                )
+                                            } catch (_: Exception) {
+                                                context.stopService(Intent(context, OverlayService::class.java))
+                                            }
                                             updateProcessingText("已送出中斷要求，正在停止…")
                                             return@IconButton
                                         }
@@ -1079,6 +1112,27 @@ fun ChatScreen(
                         if (!text.isNullOrBlank()) startRun(text, tryStartOverlay = false)
                     }
                 ) { Text("先繼續") }
+            }
+        )
+    }
+
+    permissionReminder?.let { reminder ->
+        AlertDialog(
+            onDismissRequest = { permissionReminder = null },
+            title = { Text(reminder.title) },
+            text = { Text(reminder.message) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        permissionReminder = null
+                        onNavigateToPermissions()
+                    }
+                ) { Text("前往權限設定") }
+            },
+            dismissButton = {
+                TextButton(onClick = { permissionReminder = null }) {
+                    Text("稍後再說")
+                }
             }
         )
     }

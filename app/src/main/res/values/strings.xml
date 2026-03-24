@@ -6,6 +6,9 @@
     <string name="ai_settings_title">AI Settings</string>
     <string name="settings_language_title">Language</string>
     <string name="settings_language_subtitle">Follow Android system language automatically</string>
+    <string name="settings_permissions_title">Permission settings</string>
+    <string name="settings_permissions_subtitle">Notifications, microphone, device playback audio, overlay, accessibility</string>
+    <string name="permission_settings_screen_title">Permission settings</string>
     <string name="language_settings_title">Language Settings</string>
     <string name="language_settings_follow_system">OpenRing currently follows your Android system language.</string>
     <string name="language_settings_current_locale">Current language: %1$s</string>
@@ -28,6 +31,9 @@
     <string name="notification_ai_running_hint">Open app or stop this run</string>
     <string name="notification_action_stop_run">Stop</string>
     <string name="notification_overlay_running">Floating indicator · tap parrot to stop AI</string>
+    <string name="notification_channel_media_projection_name">Device playback audio</string>
+    <string name="notification_media_projection_title">OpenRing · device playback audio</string>
+    <string name="notification_media_projection_text">MediaProjection active for capturing playback from other apps (same consent as screen recording).</string>
     <string name="permission_notifications_title">Notifications</string>
     <string name="permission_notifications_granted_summary">Allowed: schedule status, AI run, and resident schedule alerts can appear.</string>
     <string name="permission_notifications_denied_summary">Not allowed: OpenRing cannot show status or control notifications on Android 13+. Tap Allow to enable.</string>

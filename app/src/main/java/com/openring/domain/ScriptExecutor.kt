@@ -25,6 +25,7 @@ import com.openring.data.model.Schedule
 import com.openring.data.model.Script
 import com.openring.data.model.ScriptStep
 import com.openring.ui.notifications.AiRunNotification
+import com.openring.settings.AiPromptStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -290,6 +291,7 @@ class ScriptExecutor(
                 var success = false
                 var runResult: ReActCoordinator.RunResult? = null
                 val coordinator = ReActCoordinator(context)
+                val maxRounds = AiPromptStore(context).getMaxRounds()
                 for (opt in modelStore.getModels()) {
                     val key = keyStore.getGeminiApiKeyForModel(opt.id)
                     if (key.isNullOrBlank() || opt.provider != "gemini") continue
@@ -298,6 +300,7 @@ class ScriptExecutor(
                             apiKey = key,
                             model = opt.model,
                             userText = prompt,
+                            maxRounds = maxRounds,
                             shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
                             onTurn = { }
                         )

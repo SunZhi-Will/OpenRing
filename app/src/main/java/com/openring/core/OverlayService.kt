@@ -30,7 +30,7 @@ import com.openring.ui.MainActivity
 class OverlayService : Service() {
 
     companion object {
-        const val CHANNEL_ID = "openring_overlay_v2"
+        const val CHANNEL_ID = "openring_main_v1"
         const val NOTIFICATION_ID = 1001
         private const val OVERLAY_SIZE_DP = 56
         const val ACTION_START_AI_RUN = "com.openring.overlay.START_AI_RUN"
@@ -54,6 +54,8 @@ class OverlayService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP_AI_RUN -> {
+                RunCancellationRegistry.cancelAll()
+                activeSessionId?.let { RunCancellationRegistry.cancel(it) }
                 activeSessionId = null
                 updateOverlayUiState()
                 stopSelf()
@@ -97,6 +99,15 @@ class OverlayService : Service() {
             Intent(this, MainActivity::class.java).apply { setPackage(packageName) },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val stopIntent = PendingIntent.getService(
+            this,
+            1,
+            Intent(this, OverlayService::class.java).apply {
+                setPackage(packageName)
+                action = ACTION_STOP_AI_RUN
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
         return OpenRingNotificationStyle.apply(
             NotificationCompat.Builder(this, CHANNEL_ID),
             this
@@ -106,6 +117,11 @@ class OverlayService : Service() {
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .addAction(
+                R.drawable.ic_stat_stop,
+                getString(R.string.notification_action_stop_run),
+                stopIntent
+            )
             .build()
     }
 
@@ -172,10 +188,16 @@ class OverlayService : Service() {
     }
 
     private fun requestStopAiRun() {
+        RunCancellationRegistry.cancelAll()
         val sid = activeSessionId
         if (!sid.isNullOrBlank()) {
             RunCancellationRegistry.cancel(sid)
         }
+        val openIntent = Intent(this, MainActivity::class.java).apply {
+            setPackage(packageName)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        startActivity(openIntent)
         activeSessionId = null
         updateOverlayUiState()
         stopSelf()

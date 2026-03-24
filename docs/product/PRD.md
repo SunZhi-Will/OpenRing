@@ -26,7 +26,7 @@ OpenRing
 
 | 路徑 | 說明 |
 |------|------|
-| **Gemini + ReAct** | 完整工具迴圈；大型 `get_view_tree` 可壓縮；另有 **`summarize_view_tree`** 精簡摘要；**`describe_screen`** 於無障礙樹不足時以螢幕截圖 + 視覺模型補強。 |
+| **Gemini + ReAct** | 完整工具迴圈；大型 `get_view_tree` 可壓縮；另有 **`summarize_view_tree`** 精簡摘要；**`describe_screen`** 於無障礙樹不足時以螢幕截圖 + 視覺模型補強；**`describe_ambient_audio`** 以短錄音（優先 **他 App 內部播放** 擷取＋MediaProjection，可退回麥克風）交 Gemini 理解語音／聲音題。 |
 | **本機 GGUF** | 僅純文字續寫（含歷史與系統／記憶文字注入）；聊天介面支援 **串流**；不內建與雲端相同的工具自動呼叫迴圈。 |
 
 ---
@@ -477,7 +477,7 @@ A "Chat-driven, highly extensible" automation platform based on Android `Accessi
 
 | Path | Notes |
 |------|--------|
-| **Gemini + ReAct** | Full tool loop; large `get_view_tree` payloads may be compacted; **`summarize_view_tree`** returns a compact summary; **`describe_screen`** uses screenshot + vision when the accessibility tree is insufficient. |
+| **Gemini + ReAct** | Full tool loop; large `get_view_tree` payloads may be compacted; **`summarize_view_tree`** returns a compact summary; **`describe_screen`** uses screenshot + vision when the accessibility tree is insufficient; **`describe_ambient_audio`** sends a short WAV (prefer **other apps’ internal playback** via MediaProjection; microphone fallback) for Gemini to interpret audio-heavy tasks. |
 | **On-device GGUF** | Text-only continuation (history + system/memory text); chat UI supports **streaming**; no built-in tool loop equivalent to the Gemini path. |
 
 ---

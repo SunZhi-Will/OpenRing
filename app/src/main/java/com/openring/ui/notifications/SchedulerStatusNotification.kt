@@ -17,9 +17,9 @@ import com.openring.receiver.AlwaysOnSchedulerControlReceiver
 import com.openring.ui.MainActivity
 
 object SchedulerStatusNotification {
-    /** v2: DEFAULT importance so status is visible in shade / status bar (LOW was easy to miss on some devices). */
-    private const val CHANNEL_ID = "openring_scheduler_status_v2"
-    private const val NOTIFICATION_ID = 1301
+    /** Unified: share one app-wide notification slot. */
+    private const val CHANNEL_ID = "openring_main_v1"
+    private const val NOTIFICATION_ID = 1001
 
     fun update(
         context: Context,
@@ -28,6 +28,11 @@ object SchedulerStatusNotification {
         alwaysOnSuspended: Boolean,
         backgroundWorkCount: Int = 0
     ) {
+        // User explicitly stopped always-on: keep notification hidden unless there is active background work.
+        if (alwaysOnSuspended && backgroundWorkCount <= 0) {
+            cancel(context)
+            return
+        }
         if (enabledScheduleCount <= 0 && backgroundWorkCount <= 0) {
             cancel(context)
             return

@@ -4,7 +4,7 @@
 
 > 純手機端架構 | 依優先級排序
 
-> **近期已落地（維護文件用）**：本機 GGUF 聊天與**串流**、`summarize_view_tree` 精簡 UI、`UiTreeCompact` 與 ReAct 共用壓縮邏輯、Phi／Gemma／Qwen 等對話模板、Gemini `describe_screen` 視覺後援、型錄化 GGUF 下載等。細節見 [AI_AGENT.md](../technical/AI_AGENT.md) 與 README。
+> **近期已落地（維護文件用）**：本機 GGUF 聊天與**串流**、`summarize_view_tree` 精簡 UI、`UiTreeCompact` 與 ReAct 共用壓縮邏輯、Phi／Gemma／Qwen 等對話模板、Gemini `describe_screen` 視覺後援、**`describe_ambient_audio`（優先內部播放擷取）**、**設定內「權限設定」入口**與權限集中頁（通知／麥克風／手機播放音訊／懸浮窗／無障礙）、型錄化 GGUF 下載等。細節見 [AI_AGENT.md](../technical/AI_AGENT.md) 與 README。
 
 ---
 

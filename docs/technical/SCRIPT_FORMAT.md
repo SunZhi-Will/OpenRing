@@ -100,6 +100,12 @@
 
 ---
 
+## 延伸閱讀
+
+- 執行期**權限**與對話 **Agent 工具**（與腳本引擎分開）：[README.md](../../README.md)、[AI_AGENT.md](AI_AGENT.md)。
+
+---
+
 <a id="english-version"></a>
 
 # OpenRing Script Format Definition
@@ -199,3 +205,9 @@
 | `PERMISSION_DENIED` | Insufficient permissions |
 | `TIMEOUT` | Operation timed out |
 | `UNKNOWN` | Unknown error |
+
+---
+
+## See also
+
+- Runtime **permissions** and chat **agent tools** (separate from script engine): [README.md](../../README.md), [AI_AGENT.md](AI_AGENT.md).

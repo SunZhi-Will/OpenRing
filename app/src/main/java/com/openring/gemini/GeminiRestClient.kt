@@ -131,6 +131,31 @@ class GeminiRestClient(
     }
 
     /**
+     * Single-turn audio: WAV (Base64) + prompt → model text (e.g. spoken prompt / language-learning audio).
+     */
+    fun describeAmbientAudioWithGemini(
+        apiKey: String,
+        model: String,
+        audioWavBase64: String,
+        prompt: String,
+    ): String {
+        val request = GenerateContentRequest(
+            contents = listOf(
+                Content(
+                    role = "user",
+                    parts = listOf(
+                        Part(text = prompt),
+                        Part(inlineData = InlineData(mimeType = "audio/wav", data = audioWavBase64)),
+                    ),
+                ),
+            ),
+        )
+        val resp = generateContent(apiKey, model, request)
+        return resp.firstText()?.trim()
+            ?: throw IllegalStateException("Audio understanding response had no text")
+    }
+
+    /**
      * Text embedding for vector memory / similarity (Gemini Developer API).
      * @param modelId e.g. `gemini-embedding-001`
      */

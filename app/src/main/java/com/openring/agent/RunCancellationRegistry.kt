@@ -14,6 +14,10 @@ object RunCancellationRegistry {
         flags[sessionId]?.set(true)
     }
 
+    fun cancelAll() {
+        flags.values.forEach { it.set(true) }
+    }
+
     fun isCancelled(sessionId: String): Boolean {
         return flags[sessionId]?.get() == true
     }

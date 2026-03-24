@@ -1,10 +1,15 @@
 package com.openring.ui.screens
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import androidx.activity.compose.LocalActivity
@@ -13,6 +18,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import com.openring.R
+import com.openring.core.MediaProjectionHostService
+import com.openring.core.MediaProjectionSession
 import com.openring.domain.Scheduler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -26,8 +33,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.SettingsAccessibility
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -84,6 +93,19 @@ fun PermissionsScreen(onBack: () -> Unit) {
         )
     }
 
+    var micGranted by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    var devicePlaybackActive by remember {
+        mutableStateOf(MediaProjectionSession.isActive())
+    }
+
+    val mainHandler = remember { Handler(Looper.getMainLooper()) }
+
     val requestPostNotifications = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -91,6 +113,12 @@ fun PermissionsScreen(onBack: () -> Unit) {
         if (granted) {
             Scheduler(context.applicationContext).refreshAlwaysOnServiceState()
         }
+    }
+
+    val requestRecordAudio = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        micGranted = granted
     }
 
     fun refreshStatus() {
@@ -105,6 +133,24 @@ fun PermissionsScreen(onBack: () -> Unit) {
             } else {
                 true
             }
+        micGranted =
+            ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+        devicePlaybackActive = MediaProjectionSession.isActive()
+    }
+
+    val screenCaptureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            val act = activity
+            if (act != null) {
+                MediaProjectionSession.attachFromActivityResult(act, result.resultCode, result.data!!)
+            }
+        } else {
+            MediaProjectionHostService.requestStop(context.applicationContext)
+        }
+        refreshStatus()
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -160,10 +206,23 @@ fun PermissionsScreen(onBack: () -> Unit) {
         }
     }
 
+    fun openAppDetailsSettings() {
+        try {
+            context.startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            )
+        } catch (e: Exception) {
+            Log.w("OpenRing", "無法開啟應用程式資訊", e)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("權限") },
+                title = { Text(stringResource(R.string.permission_settings_screen_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
@@ -231,6 +290,96 @@ fun PermissionsScreen(onBack: () -> Unit) {
                     }
                 },
                 actionContentDescription = stringResource(R.string.permission_notifications_title)
+            )
+
+            PermissionCard(
+                title = "麥克風（聽覺／環境音）",
+                summary = if (micGranted) {
+                    "已允許：Agent 工具 describe_ambient_audio 可短錄音並由 Gemini 理解語音或提示音（例如聽音配對）。"
+                } else {
+                    "未允許：無法使用聽覺工具；若題目依賴聲音，請先允許麥克風。"
+                },
+                statusContentDescription = if (micGranted) {
+                    "麥克風權限狀態：已允許"
+                } else {
+                    "麥克風權限狀態：未允許"
+                },
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Mic,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                actionLabel = if (micGranted) "前往設定" else "允許麥克風",
+                onAction = {
+                    if (!micGranted && activity != null) {
+                        requestRecordAudio.launch(Manifest.permission.RECORD_AUDIO)
+                    } else {
+                        openAppDetailsSettings()
+                    }
+                },
+                actionContentDescription = if (micGranted) "前往設定：應用程式權限" else "請求麥克風權限"
+            )
+
+            PermissionCard(
+                title = "手機播放音訊（內部混音）",
+                summary = when {
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ->
+                        "需要 Android 10 以上才能擷取他 App 從裝置播出的聲音。"
+                    devicePlaybackActive ->
+                        "已啟用：describe_ambient_audio 會優先錄內部播放（與螢幕錄製相同授權）；可點「停止擷取」結束。"
+                    !micGranted ->
+                        "請先允許上一項「麥克風」，再回來按「授權擷取」完成系統對話框。"
+                    else ->
+                        "未啟用：按「授權擷取」後會出現系統提示與前台通知（Android 14+ 規定）。"
+                },
+                statusContentDescription = if (devicePlaybackActive) {
+                    "裝置播放音訊擷取：已啟用"
+                } else {
+                    "裝置播放音訊擷取：未啟用"
+                },
+                leadingIcon = {
+                    Icon(
+                        Icons.AutoMirrored.Filled.VolumeUp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                actionLabel = when {
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> "了解"
+                    devicePlaybackActive -> "停止擷取"
+                    !micGranted -> "先允許麥克風"
+                    else -> "授權擷取"
+                },
+                onAction = {
+                    when {
+                        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> openAppDetailsSettings()
+                        devicePlaybackActive -> {
+                            MediaProjectionSession.releaseAndStopService(context)
+                            refreshStatus()
+                        }
+                        !micGranted -> {
+                            if (activity != null) {
+                                requestRecordAudio.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        }
+                        else -> {
+                            val act = activity ?: return@PermissionCard
+                            MediaProjectionHostService.requestPrepare(context.applicationContext)
+                            mainHandler.postDelayed({
+                                val mpm =
+                                    act.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                                screenCaptureLauncher.launch(mpm.createScreenCaptureIntent())
+                            }, 280L)
+                        }
+                    }
+                },
+                actionContentDescription = when {
+                    devicePlaybackActive -> "停止裝置播放音訊擷取"
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> "開啟應用程式資訊"
+                    else -> "授權擷取裝置播放音訊"
+                }
             )
 
             PermissionCard(

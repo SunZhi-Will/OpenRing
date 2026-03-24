@@ -301,12 +301,12 @@ OpenRing/
 ├── app/                    # Android App 主模組
 │   ├── src/main/
 │   │   ├── java/.../       # Kotlin 原始碼
-│   │   │   ├── core/       # AccessibilityService, Parser, Executor
+│   │   │   ├── core/       # AccessibilityService, Parser, Executor, ScreenCapture, 播放音訊／MediaProjection
 │   │   │   ├── agent/      # ReAct, ToolDispatcher, ToolSchemas
 │   │   │   ├── localmodel/ # GGUF 型錄、LocalLlmEngine
 │   │   │   ├── data/       # ScriptStore, Room, ChatRepository
 │   │   │   ├── domain/     # ScriptExecutor, Scheduler
-│   │   │   └── ui/         # Jetpack Compose 畫面
+│   │   │   └── ui/         # Jetpack Compose（含設定內「權限設定」、聊天）
 │   │   └── res/
 │   └── build.gradle.kts
 ├── docs/
@@ -632,12 +632,12 @@ OpenRing/
 ├── app/                    # Main Android App module
 │   ├── src/main/
 │   │   ├── java/.../       # Kotlin source code
-│   │   │   ├── core/       # AccessibilityService, Parser, Executor
+│   │   │   ├── core/       # AccessibilityService, Parser, Executor, ScreenCapture, playback audio / MediaProjection
 │   │   │   ├── agent/      # ReAct, ToolDispatcher, ToolSchemas
 │   │   │   ├── localmodel/ # GGUF catalog, LocalLlmEngine
 │   │   │   ├── data/       # ScriptStore, Room, ChatRepository
 │   │   │   ├── domain/     # ScriptExecutor, Scheduler
-│   │   │   └── ui/         # Jetpack Compose screens
+│   │   │   └── ui/         # Jetpack Compose (incl. Settings → Permission settings, Chat)
 │   │   └── res/
 │   └── build.gradle.kts
 ├── docs/

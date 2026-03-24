@@ -18,7 +18,8 @@
 - [ ] 變更 3
 
 ## 🧪 測試結果
-請說明您如何測試您的變更，或者提供您的測試日誌或截圖。
+請說明您如何測試您的變更，或者提供您的測試日誌或截圖。  
+若變更涉及**通知、麥克風、MediaProjection／手機播放音訊、懸浮窗或無障礙**，請註明是否已在 **設定 → 權限設定**（或聊天選單「權限與無障礙」）手動驗證。
 
 ## ☑️ PR 檢查清單
 在提交此 PR 之前，請確認以下項目：
@@ -52,7 +53,8 @@ List out the changes made in this PR:
 - [ ] Change 3
 
 ## 🧪 Test Results
-Please describe how you tested your changes, or provide your test logs/screenshots.
+Please describe how you tested your changes, or provide your test logs/screenshots.  
+If the change touches **notifications**, **microphone**, **MediaProjection / device playback audio**, **overlay**, or **accessibility**, note whether you manually verified **Settings → Permission settings** (or Chat **Permissions & accessibility**).
 
 ## ☑️ PR Checklist
 Before submitting this PR, please verify the following:

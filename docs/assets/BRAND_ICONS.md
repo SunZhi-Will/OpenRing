@@ -67,6 +67,12 @@
 
 ---
 
+## 延伸閱讀
+
+- App **權限**與 Agent 工具說明見專案 [README.md](../../README.md) 與 [AI_AGENT.md](../technical/AI_AGENT.md)（與品牌圖示無關）。
+
+---
+
 <a id="english-version"></a>
 
 # Model Icons: Use Official Brand Logos
@@ -133,3 +139,9 @@ If using **PNG**: Name the PNG file as mentioned above (e.g., `ic_provider_gemin
 | Other     | `ic_provider_generic`       | Generic placeholder, replace as needed|
 
 After replacing the above files, no code changes are required. Simply rebuild to display the official logos.
+
+---
+
+## See also
+
+- App **permissions** and agent tools are documented in the project [README.md](../../README.md) and [AI_AGENT.md](../technical/AI_AGENT.md) (unrelated to brand icons).

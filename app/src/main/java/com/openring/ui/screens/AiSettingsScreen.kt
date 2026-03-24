@@ -24,9 +24,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -46,6 +52,8 @@ fun AiSettingsScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val promptStore = remember { AiPromptStore(context) }
+    var maxRounds by remember { mutableStateOf(promptStore.getMaxRounds()) }
+    var showMaxRoundsDialog by remember { mutableStateOf(false) }
 
     val systemPromptPreview = remember { promptStore.getSystemPrompt().trim() }
         .lineSequence()
@@ -116,7 +124,53 @@ fun AiSettingsScreen(
                 )
             }
 
+            item {
+                SettingsNavCard(
+                    icon = Icons.Default.Tune,
+                    title = "最大回合數",
+                    subtitle = "目前：$maxRounds（預設 30）",
+                    onClick = { showMaxRoundsDialog = true }
+                )
+            }
+
         }
+    }
+
+    if (showMaxRoundsDialog) {
+        var draft by remember(showMaxRoundsDialog) { mutableStateOf(maxRounds.toString()) }
+        AlertDialog(
+            onDismissRequest = { showMaxRoundsDialog = false },
+            title = { Text("調整最大回合數") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text("可設定範圍：5 - 300。數字越大，AI 嘗試步數越多。")
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { next ->
+                            draft = next.filter { it.isDigit() }.take(3)
+                        },
+                        singleLine = true,
+                        label = { Text("最大回合數") }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val parsed = draft.toIntOrNull()
+                        if (parsed != null) {
+                            val normalized = parsed.coerceIn(5, 300)
+                            promptStore.setMaxRounds(normalized)
+                            maxRounds = normalized
+                            showMaxRoundsDialog = false
+                        }
+                    }
+                ) { Text("儲存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMaxRoundsDialog = false }) { Text("取消") }
+            }
+        )
     }
 }
 

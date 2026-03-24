@@ -83,7 +83,8 @@ fun OpenRingNavHost(
         composable(Screen.Settings.route) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
-                onNavigateToLanguageSettings = { navController.navigate(Screen.LanguageSettings.route) }
+                onNavigateToLanguageSettings = { navController.navigate(Screen.LanguageSettings.route) },
+                onNavigateToPermissionSettings = { navController.navigate(Screen.Permissions.route) },
             )
         }
         composable(Screen.Permissions.route) {

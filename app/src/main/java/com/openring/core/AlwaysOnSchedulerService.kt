@@ -38,8 +38,8 @@ import java.util.concurrent.TimeUnit
 class AlwaysOnSchedulerService : Service() {
 
     companion object {
-        const val CHANNEL_ID = "openring_always_on_scheduler_v2"
-        private const val NOTIFICATION_ID = 1101
+        const val CHANNEL_ID = "openring_main_v1"
+        private const val NOTIFICATION_ID = 1001
         const val ACTION_TERMINATE_ALWAYS_ON = "com.openring.action.TERMINATE_ALWAYS_ON"
     }
 

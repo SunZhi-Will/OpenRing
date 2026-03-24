@@ -1,5 +1,7 @@
 # OpenRing Skill Instruction Template / 範本
 
+> Host **permissions** and `describe_ambient_audio` are documented in the project [README.md](../../README.md) and [docs/technical/AI_AGENT.md](../technical/AI_AGENT.md).
+
 ## 繁體中文
 
 ```markdown

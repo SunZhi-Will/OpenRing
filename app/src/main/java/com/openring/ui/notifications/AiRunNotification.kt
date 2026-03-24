@@ -16,9 +16,9 @@ import com.openring.receiver.AiRunControlReceiver
 import com.openring.ui.MainActivity
 
 object AiRunNotification {
-    /** v2: DEFAULT importance for visibility (see scheduler channel note). */
-    const val CHANNEL_ID = "openring_ai_run_v2"
-    const val NOTIFICATION_ID = 1201
+    /** Unified: share one app-wide notification slot. */
+    const val CHANNEL_ID = "openring_main_v1"
+    const val NOTIFICATION_ID = 1001
     const val EXTRA_SESSION_ID = "session_id"
 
     fun show(context: Context, sessionId: String) {

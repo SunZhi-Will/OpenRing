@@ -32,6 +32,12 @@ We will aim to:
 Thank you very much for helping to keep the open-source community secure!
 
 ---
+
+## Sensitive capabilities (user consent)
+
+OpenRing may request **Accessibility**, **display over other apps**, **notifications** (Android 13+), **microphone** (`RECORD_AUDIO`), and **MediaProjection**-backed **device playback audio capture** (Android 10+; same style of consent as screen recording, with a visible foreground service on newer Android versions). These exist only to implement on-device automation and optional agent “hearing” features described in **README** and **docs/technical/AI_AGENT.md**. Users should enable them only when they trust the app and understand what is being captured.
+
+---
 <a id="traditional-chinese-version"></a>
 
 # 安全性政策
@@ -64,3 +70,9 @@ Thank you very much for helping to keep the open-source community secure!
 4. 在發布修補程式後，公開安全性建議
 
 非常感謝您協助維護開源社群的安全！
+
+---
+
+## 敏感能力與使用者同意
+
+OpenRing 可能請求 **無障礙**、**顯示於其他應用程式上層**、**通知**（Android 13+）、**麥克風**（`RECORD_AUDIO`），以及基於 **MediaProjection** 的 **手機播放音訊擷取**（Android 10+；同意流程類似螢幕錄製，新版 Android 需可見的前景服務）。這些僅用於本機自動化與選用之 Agent「聽覺」能力，說明見 **README** 與 **docs/technical/AI_AGENT.md**。請使用者只在信任此 App 且理解擷取範圍時再授權。

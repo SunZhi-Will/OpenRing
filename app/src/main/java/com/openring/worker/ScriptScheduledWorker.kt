@@ -1,6 +1,7 @@
 package com.openring.worker
 
 import android.content.Context
+import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.openring.data.db.OpenRingDatabase
@@ -28,8 +29,9 @@ class ScriptScheduledWorker(
         }
 
         // 先續排下一次，避免本次執行失敗後排程斷鍊。
+        // 這裡不能取消既有 unique work，否則會把當前執行中的 Worker 一起取消。
         if (shouldChainNext) {
-            Scheduler(applicationContext).scheduleScript(scriptId, schedule)
+            Scheduler(applicationContext).scheduleScript(scriptId, schedule, cancelExisting = false)
         }
 
         val executor = ScriptExecutor(applicationContext, db.executionHistoryDao())
@@ -37,9 +39,18 @@ class ScriptScheduledWorker(
         val result = executor.execute(script, restoreOpenRingOnFinish = false)
 
         return when (result) {
-            is ScriptExecutor.ExecutionResult.Success -> Result.success()
+            is ScriptExecutor.ExecutionResult.Success -> {
+                Log.i("OpenRing", "ScriptScheduledWorker: script executed success scriptId=$scriptId")
+                Result.success()
+            }
             // 已先續排下一次，避免 WorkManager retry backoff 破壞固定頻率
-            is ScriptExecutor.ExecutionResult.Failure -> Result.success()
+            is ScriptExecutor.ExecutionResult.Failure -> {
+                Log.w(
+                    "OpenRing",
+                    "ScriptScheduledWorker: script execution failed but keep schedule scriptId=$scriptId step=${result.stepIndex} error=${result.error}"
+                )
+                Result.success()
+            }
         }
     }
 }

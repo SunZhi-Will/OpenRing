@@ -29,6 +29,7 @@ assignees: ''
  - 設備型號：[例如：Google Pixel 7]
  - 作業系統版本：[例如：Android 14]
  - App 版本：[例如：v1.0.0]
+ - （若與自動化／聽覺有關）**權限狀態**：無障礙、懸浮窗、麥克風、手機播放音訊（MediaProjection）是否已於「設定 → 權限設定」開啟
 
 ## 📝 額外補充
 在此處提供有關該問題的任何其他上下文，例如錯誤日誌 (Logcat)。
@@ -57,6 +58,7 @@ Please complete the following information:
  - Device: [e.g. Google Pixel 7]
  - OS Version: [e.g. Android 14]
  - App Version: [e.g. v1.0.0]
+ - (If related to automation / hearing) **Permission state**: whether Accessibility, overlay, microphone, and device playback audio (MediaProjection) are enabled under **Settings → Permission settings**
 
 ## 📝 Additional context
 Add any other context about the problem here, such as Logcat output.

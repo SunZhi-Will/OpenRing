@@ -68,6 +68,15 @@ docs: update getting started section in README
 
 ---
 
+## 🔐 Permission-related manual checks
+
+If your change touches **notifications**, **microphone** (`RECORD_AUDIO`), **MediaProjection / device playback audio**, **overlay**, or **accessibility** flows, manually verify:
+
+- **Settings → Permission settings** and the Chat menu **Permissions & accessibility** both reach the same screen and state updates after returning from system dialogs.
+- Android 14+ foreground service behavior for `MediaProjectionHostService` if applicable.
+
+---
+
 ## ✅ Pull Request Checklist
 
 Before submitting a PR, please verify the following:
@@ -167,6 +176,15 @@ feat(parser): add support for extracting text from RecyclerViews
 fix(executor): prevent crash when clicking out of bounds
 docs: update getting started section in README
 ```
+
+---
+
+## 🔐 與權限相關的手動檢查
+
+若變更涉及**通知**、**麥克風**（`RECORD_AUDIO`）、**MediaProjection／手機播放音訊**、**懸浮窗**或**無障礙**流程，請手動確認：
+
+- **設定 → 權限設定** 與聊天選單 **權限與無障礙** 皆能進入同一畫面，且從系統對話框返回後狀態會更新。
+- Android 14+ 上 `MediaProjectionHostService` 前景服務類型是否符合預期（若有修改）。
 
 ---
 

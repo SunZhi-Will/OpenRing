@@ -34,6 +34,7 @@ Defined in `ToolSchemas.kt`, implemented in `ToolDispatcher.kt`. Examples:
 | `get_cached_scan` | Last cached scan (same shape as `get_view_tree` data) without a fresh traversal. |
 | `summarize_view_tree` | **Compact** summary: content fingerprint + clickable node ids/labels (no full `root` tree). Updates the same scan cache as `get_view_tree`. |
 | `describe_screen` | **Vision fallback**: screenshot + Gemini multimodal description (API 30+; requires Gemini key). Use when the tree is insufficient. |
+| `describe_ambient_audio` | **Hearing**: short WAV → Gemini. Prefers **device-internal playback** capture (`AudioPlaybackCapture` + user **MediaProjection**, Android 10+; see in-app **Permission settings**). Falls back to microphone if projection is off or capture fails. Requires `RECORD_AUDIO` and Gemini key; some apps disallow playback capture. |
 | `find_and_click`, `click_node`, `input_text`, … | Gesture and input automation. |
 | `call_skill` / `skill_*` | QuickJS skill execution. |
 | Memory tools | Long-term / session memory (`MemoryRepository`). |
@@ -54,6 +55,16 @@ Used both for **Gemini** tool-result shrinking and for **`summarize_view_tree`**
 
 ---
 
+## 4b. Permission settings (UI)
+
+Users open **Settings → Permission settings** (same destination as Chat menu **Permissions & accessibility**) to grant:
+
+- **Notifications** (Android 13+), **Microphone**, **Device playback audio** (MediaProjection + `MediaProjectionHostService` foreground type on Android 14+), **Overlay**, **Accessibility**.
+
+Implementation: `PermissionsScreen.kt`, `MediaProjectionSession.kt`, `MediaProjectionHostService.kt`, `PlaybackAudioCapture.kt`, `AmbientAudioCapture.kt`, `WavPcm16Writer.kt`.
+
+---
+
 ## 5. Key source files
 
 | Area | Location |
@@ -68,6 +79,10 @@ Used both for **Gemini** tool-result shrinking and for **`summarize_view_tree`**
 | Local prompts | `app/src/main/java/com/openring/localmodel/LocalLlmChatPrompt.kt` |
 | Model catalog / downloads | `app/src/main/java/com/openring/localmodel/LocalModelCatalog.kt`, `LocalModelDownloader.kt` |
 | Chat UI | `app/src/main/java/com/openring/ui/screens/ChatScreen.kt` |
+| Permission settings UI | `app/src/main/java/com/openring/ui/screens/PermissionsScreen.kt`, entry from `SettingsScreen.kt` |
+| Device playback capture | `app/src/main/java/com/openring/core/PlaybackAudioCapture.kt`, `MediaProjectionSession.kt`, `MediaProjectionHostService.kt` |
+| Mic fallback WAV | `app/src/main/java/com/openring/core/AmbientAudioCapture.kt`, `WavPcm16Writer.kt` |
+| Gemini audio multimodal | `app/src/main/java/com/openring/gemini/GeminiRestClient.kt` (`describeAmbientAudioWithGemini`) |
 
 ---
 
@@ -77,6 +92,7 @@ Used both for **Gemini** tool-result shrinking and for **`summarize_view_tree`**
 - **Prompt length**: `LocalLlmEngine` clips prompts to a conservative character budget derived from the loaded model’s `contextSize` and `maxTokens` to avoid native crashes from oversized context; the local tool catalog is also capped (`ToolSchemas.buildLocalToolCatalogText`).
 - **Threading**: `llama-kotlin-android`’s `LlamaModel` loads on `Dispatchers.IO` and runs generation on `Dispatchers.Default`, which breaks JNI thread affinity and caused `SIGSEGV`. `LocalLlmEngine` instead uses `LocalLlamaJni` (Java) to call `LlamaNative` static methods, and runs load + generate on one dedicated executor thread.
 - **Vision** (`describe_screen`) depends on **Gemini** credentials and Android screenshot capabilities.
+- **Audio** (`describe_ambient_audio`) needs **Gemini** plus **`RECORD_AUDIO`**. **Internal playback** capture also needs an active **MediaProjection** session (user consent, foreground service on Android 14+). Target apps may set `allowAudioPlaybackCapture=false`, in which case only microphone fallback may work.
 - **Skills** (`call_skill` / `skill_*`) use the same `ToolDispatcher` names as Gemini; the local JSON agent can call them if the model outputs valid `tool_calls`.
 
 For skills packaging and QuickJS behavior, see [SKILLS.md](SKILLS.md) and [skill-templates/README.md](../skill-templates/README.md).

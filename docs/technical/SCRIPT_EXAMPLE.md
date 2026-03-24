@@ -97,6 +97,12 @@
 4. **從簡單開始**：先試 `launch_app` + `wait` + `find_and_click` 能否成功
 
 ---
+
+## 延伸閱讀
+
+- 對話 Agent、權限與聽覺工具： [README.md](../../README.md)、[AI_AGENT.md](AI_AGENT.md)。
+
+---
 <a id="english-version"></a>
 
 # OpenRing Script Examples and Step Instructions
@@ -194,3 +200,9 @@ Step 5: swipe
 2. **Text must be precise**: The `text` for `find_and_click` should exactly match what is displayed on the screen (or use `contains` for partial match)
 3. **Operate manually first**: Note down the text and sequence to click, then convert them into steps
 4. **Start simple**: Try if `launch_app` + `wait` + `find_and_click` succeeds first
+
+---
+
+## See also
+
+- Chat agent, **permissions**, and hearing tools: [README.md](../../README.md), [AI_AGENT.md](AI_AGENT.md).

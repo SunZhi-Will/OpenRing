@@ -68,6 +68,8 @@ import com.openring.workflow.WorkflowTemplates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 @OptIn(ExperimentalFoundationApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -81,6 +83,7 @@ fun ScriptListScreen(
     val db = OpenRingDatabase.getDatabase(context)
     val scriptStore = ScriptStore(db.scriptDao())
     val scheduler = remember { Scheduler(context) }
+    val json = remember { Json { ignoreUnknownKeys = true } }
     val scripts by scriptStore.allScripts.collectAsState(initial = emptyList())
     val templateEntries = remember { WorkflowTemplates.listEntries(context) }
     var showTemplateDialog by remember { mutableStateOf(false) }
@@ -201,7 +204,6 @@ fun ScriptListScreen(
                     ScriptItem(
                         script = script,
                         scriptStore = scriptStore,
-                        scheduler = scheduler,
                         onClick = { onNavigateToEditor(script.id) },
                         onDelete = {
                             scope.launch {
@@ -228,6 +230,25 @@ fun ScriptListScreen(
                                 } catch (e: Exception) {
                                     Log.e("OpenRing", "執行崩潰", e)
                                     e.printStackTrace()
+                                }
+                            }
+                        },
+                        onToggleSchedule = {
+                            scope.launch {
+                                val currentSchedule = scriptStore.parseSchedule(script.scheduleJson)
+                                if (currentSchedule.type == "disabled") return@launch
+                                val updatedSchedule = currentSchedule.copy(enabled = !currentSchedule.enabled)
+                                withContext(Dispatchers.IO) {
+                                    scriptStore.updateScript(
+                                        script.copy(
+                                            scheduleJson = json.encodeToString(updatedSchedule)
+                                        )
+                                    )
+                                    if (updatedSchedule.enabled) {
+                                        scheduler.scheduleScript(script.id, updatedSchedule)
+                                    } else {
+                                        scheduler.cancelScript(script.id)
+                                    }
                                 }
                             }
                         }
@@ -285,10 +306,10 @@ fun ScriptListScreen(
 private fun ScriptItem(
     script: Script,
     scriptStore: ScriptStore,
-    scheduler: Scheduler,
     onClick: () -> Unit,
     onDelete: () -> Unit,
-    onRun: () -> Unit
+    onRun: () -> Unit,
+    onToggleSchedule: () -> Unit
 ) {
     val schedule = scriptStore.parseSchedule(script.scheduleJson)
     val scheduleText = when {
@@ -382,6 +403,21 @@ private fun ScriptItem(
                 }
                 IconButton(onClick = onRun) {
                     Icon(Icons.Default.PlayArrow, contentDescription = "執行", tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(
+                    onClick = onToggleSchedule,
+                    enabled = schedule.type != "disabled"
+                ) {
+                    val enabledColor = if (schedule.enabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    Icon(
+                        Icons.Default.History,
+                        contentDescription = if (schedule.enabled) "關閉排程" else "啟用排程",
+                        tint = enabledColor
+                    )
                 }
             }
         }

@@ -32,7 +32,7 @@ OpenRing is a **local Android automation agent** that moves across apps with **A
 
 - **🚫 No Root Required**: Built on Android's official `AccessibilityService`, no need to hack or root your phone.
 - **📱 Phone-First**: No PC or ADB required; **no OpenRing backend** — scripts, data, and skills stay on device unless you call a cloud API yourself (e.g. Gemini).
-- **🤖 Chat-Driven Agent**: **ReAct** loop with **Gemini** tools — `get_view_tree`, **`summarize_view_tree`** (compact UI), **`describe_screen`** (vision fallback when the tree is not enough), taps, input, memory, skills, and more.
+- **🤖 Chat-Driven Agent**: **ReAct** loop with **Gemini** tools — `get_view_tree`, **`summarize_view_tree`** (compact UI), **`describe_screen`** (vision fallback when the tree is not enough), **`describe_ambient_audio`** (hearing: prefers **device-internal playback** capture via MediaProjection; microphone fallback), taps, input, memory, skills, and more.
 - **🦙 Optional On-Device LLM**: Curated **GGUF** catalog (`LocalModelCatalog`) with in-app download; **token streaming** in chat; chat templates for Qwen / Phi / Gemma / TinyLlama-style models (`LocalLlmChatPrompt`).
 - **👁️ Semantic UI Parsing**: View tree → JSON for scripts and automation; large trees can be **compacted** for LLM context (`UiTreeCompact`).
 - **🖱️ Human-Like Actions**: Clicks, swipes, long press, Back, Home, app launch.
@@ -76,7 +76,7 @@ OpenRing is built entirely in **Kotlin** and leverages modern Android developmen
 OpenRing/
 ├── app/                  # The main Android Application module
 │   └── src/main/
-│       ├── core/         # AccessibilityService, Parser, Executor, IntentRouter, ScreenCapture
+│       ├── core/         # AccessibilityService, Parser, Executor, IntentRouter, ScreenCapture, playback audio / MediaProjection
 │       ├── agent/        # ReActCoordinator, ToolSchemas, ToolDispatcher, UiTreeCompact
 │       ├── localmodel/   # GGUF catalog, downloader, LocalLlmEngine, chat prompts
 │       ├── gemini/       # Gemini REST client & models
@@ -150,7 +150,7 @@ When creating a **New release**, upload installable/distributable files directly
 | [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md)         | Project overview, architecture design, milestones, and potential risks                 |
 | [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md)   | Product feature backlog, user stories, and priority evaluation                         |
 | [PRD.md](docs/product/PRD.md)                           | Product requirements: Chat-Driven OS, Gemini, skills, accessibility                    |
-| [AI_AGENT.md](docs/technical/AI_AGENT.md)               | **Agent stack**: ReAct, tools (`summarize_view_tree`, vision, …), local GGUF, file map |
+| [AI_AGENT.md](docs/technical/AI_AGENT.md)               | **Agent stack**: ReAct, tools (`summarize_view_tree`, vision, `describe_ambient_audio`, …), permissions UI, local GGUF, file map |
 | [SKILLS.md](docs/technical/SKILLS.md)                   | Tools vs Skills, QuickJS, morality guardrails                                          |
 | [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md)     | JSON format definition and action list supported by the script engine                  |
 | [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | Team assignments and system Prompt references for AI development                       |
@@ -167,7 +167,20 @@ When creating a **New release**, upload installable/distributable files directly
 - **Suspended until next app launch**: After **Terminate always-on**, always-on stays off until the next cold app launch (`AlwaysOnRunGate`).
 
 On **Android 13+**, grant **notification permission** or you will not see status notifications.
-The **Permissions** page now always shows a **Notifications** card (all Android versions): on Android 13+ it can request runtime permission directly; on older versions it links to system notification settings for quick verification.
+
+### Permission settings
+
+Open **Settings** (from Chat) → **Permission settings** to manage:
+
+| Area | Purpose |
+|------|---------|
+| **Notifications** | Status / scheduler / AI run alerts (Android 13+ runtime grant; older OS links to system notification settings). |
+| **Microphone** | `RECORD_AUDIO` — required for agent audio tools (including internal playback capture APIs). |
+| **Device playback audio** | Android 10+: user-granted **MediaProjection** (same consent pattern as screen recording) + foreground service — used so `describe_ambient_audio` can capture **other apps’ speaker mix**, not only the mic. |
+| **Display over other apps** | Floating stop control during runs. |
+| **Accessibility** | Core automation (OpenRing accessibility service). |
+
+The same screen is available from the Chat menu as **Permissions & accessibility**.
 
 ---
 

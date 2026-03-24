@@ -10,6 +10,8 @@ Use this skill when:
 - The UI shows multiple similar labels and blind clicking is risky.
 - You need deterministic matching before calling click tools.
 
+For **listen / sound-match** exercises (audio prompts), pair with the host tool **`describe_ambient_audio`**: prefer **device playback audio** capture (MediaProjection, enabled under OpenRing **Permission settings**) so the model hears in-app audio; fall back to microphone if needed.
+
 Call pattern:
 - Prefer dynamic tool: `skill_duolingo_word_match_guard`
 - Or explicit call: `call_skill` with `skill: "duolingo_word_match_guard"`

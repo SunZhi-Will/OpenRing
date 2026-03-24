@@ -13,7 +13,10 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Agent「聽覺」：describe_ambient_audio 短錄音送 Gemini 多模態 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- 精準排程（Android 12+ 會更嚴格；若無權限，仍可使用 battery mode） -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
@@ -68,6 +71,12 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="scheduler" />
         </service>
+
+        <!-- MediaProjection：擷取他 App 播放音訊（Android 10+；Android 14+ 需此前台服務類型） -->
+        <service
+            android:name=".core.MediaProjectionHostService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <!-- AlarmManager 精準排程接收器 -->
         <receiver

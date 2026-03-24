@@ -32,7 +32,7 @@ OpenRing 是基於 **無障礙服務** 的 **Android 自動化 Agent**：可解�
 
 - **🚫 免 Root 權限**：基於 Android 官方的 `AccessibilityService` 開發，無需破解手機。
 - **📱 以手機為中心**：不需 ADB；**無 OpenRing 自建後台** — 腳本、資料與技能預設留在本機，除非您自行呼叫雲端 API（例如 Gemini）。
-- **🤖 對話驅動 Agent**：**ReAct** 與 **Gemini 工具** — `get_view_tree`、**`summarize_view_tree`**（精簡 UI）、**`describe_screen`**（樹不可靠時的視覺後援）、點擊輸入、記憶、技能等。
+- **🤖 對話驅動 Agent**：**ReAct** 與 **Gemini 工具** — `get_view_tree`、**`summarize_view_tree`**（精簡 UI）、**`describe_screen`**（樹不可靠時的視覺後援）、**`describe_ambient_audio`**（聽覺：優先 **手機內部播放音訊** 擷取＋MediaProjection；可退回麥克風）、點擊輸入、記憶、技能等。
 - **🦙 可選本機 LLM**：內建 **GGUF 型錄**（`LocalModelCatalog`）與 App 內下載；聊天支援 **串流**；依模型族系套用對話模板（Qwen／Phi／Gemma／TinyLlama 等，`LocalLlmChatPrompt`）。
 - **👁️ 語意化 UI 解析**：View Tree → JSON 供腳本與自動化使用；送進雲端模型前可 **壓縮** 大型樹（`UiTreeCompact`）。
 - **🖱️ 模擬人類操作**：點擊、滑動、長按、返回、Home、喚醒 App。
@@ -78,7 +78,7 @@ OpenRing 完全使用 **Kotlin** 構建，並利用現代 Android 開發實踐�
 OpenRing/
 ├── app/                  # 主要的 Android 應用程式模組
 │   └── src/main/
-│       ├── core/         # AccessibilityService, Parser, Executor, IntentRouter, 螢幕截圖
+│       ├── core/         # AccessibilityService, Parser, Executor, IntentRouter, 螢幕截圖、播放音訊擷取／MediaProjection
 │       ├── agent/        # ReActCoordinator, ToolSchemas, ToolDispatcher, UiTreeCompact
 │       ├── localmodel/   # GGUF 型錄、下載器、LocalLlmEngine、對話模板
 │       ├── gemini/       # Gemini REST 與模型定義
@@ -152,7 +152,7 @@ Release 頁面：[SunZhi-Will/OpenRing Releases](https://github.com/SunZhi-Will/
 | [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md)         | 專案總覽、架構設計、里程碑規劃與潛在風險                                             |
 | [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md)   | 產品功能待辦清單、使用者故事與優先級評估                                             |
 | [PRD.md](docs/product/PRD.md)                           | 產品需求：對話驅動、Gemini、技能、無障礙等                                           |
-| [AI_AGENT.md](docs/technical/AI_AGENT.md)               | **Agent 架構**：ReAct、工具（含 `summarize_view_tree`、視覺）、本機 GGUF、原始碼索引 |
+| [AI_AGENT.md](docs/technical/AI_AGENT.md)               | **Agent 架構**：ReAct、工具（含 `summarize_view_tree`、視覺、`describe_ambient_audio`）、權限設定頁、本機 GGUF、原始碼索引 |
 | [SKILLS.md](docs/technical/SKILLS.md)                   | 工具與技能、QuickJS、道德鎖定說明                                                    |
 | [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md)     | 腳本引擎支援的 JSON 格式定義與動作清單                                               |
 | [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | 團隊分工與 AI 開發的系統 Prompt 參考                                                 |
@@ -171,8 +171,19 @@ Release 頁面：[SunZhi-Will/OpenRing Releases](https://github.com/SunZhi-Will/
 - **短週期預設使用常駐模式**：若建立 `interval` 且 `minutes <= 5`、且未指定 `mode`，系統會預設為 `always_on`，降低 WorkManager 在待機下的延遲機率。
 - **排程 AI 回覆寫回 Chat**：當腳本包含 `ai_action`，執行後會寫入聊天記錄（`[排程：腳本名]` + 模型回覆/錯誤），並優先寫回建立排程當下的聊天工作階段（`replyChatSessionId`）。
 
-**Android 13 起** 需允許 **通知權限**，否則看不到狀態通知。  
-現在「**權限與無障礙**」頁會在所有 Android 版本固定顯示「**通知**」卡片：Android 13+ 可直接請求授權；較舊版本則可一鍵前往系統通知設定檢查是否被關閉。
+**Android 13 起** 需允許 **通知權限**，否則看不到狀態通知。
+
+### 權限設定
+
+從聊天進入 **設定** → **權限設定**（與選單 **權限與無障礙** 為同一畫面），可集中處理：
+
+| 項目 | 說明 |
+|------|------|
+| **通知** | 排程／AI 執行等狀態通知（Android 13+ 執行期授權；較舊版可轉跳系統通知設定）。 |
+| **麥克風** | `RECORD_AUDIO`，Agent 音訊相關工具需要（含內部播放擷取 API 要求）。 |
+| **手機播放音訊** | Android 10+：使用者授權 **MediaProjection**（流程類似螢幕錄製）＋前景服務，讓 `describe_ambient_audio` 優先錄 **他 App 的播放混音**，而非僅麥克風。 |
+| **懸浮窗** | 執行中顯示中斷按鈕等。 |
+| **無障礙** | 讀樹與手勢自動化（OpenRing 無障礙服務）。 |
 
 ---
 

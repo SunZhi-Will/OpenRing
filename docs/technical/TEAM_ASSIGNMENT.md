@@ -19,9 +19,9 @@
 ## A. Android 開發者
 
 ### 負責範圍
-- **核心層**：AccessibilityService、ViewTreeParser、ActionExecutor、IntentRouter、SensitiveFilter、OverlayService
+- **核心層**：AccessibilityService、ViewTreeParser、ActionExecutor、IntentRouter、SensitiveFilter、OverlayService、螢幕截圖、內部播放音訊擷取（MediaProjection／PlaybackAudioCapture）
 - **業務層**：ScriptStore（Room）、ScriptExecutor、Scheduler（WorkManager）
-- **UI 層**：腳本列表、腳本編輯器、排程設定、執行歷史
+- **UI 層**：腳本列表、腳本編輯器、排程設定、執行歷史、**設定 → 權限設定**、聊天與權限導覽
 
 ### 參考文件
 1. `docs/PROJECT_PLAN.md` — 全文（架構、模組、資料模型、里程碑）
@@ -80,7 +80,7 @@
 
 ## 備註
 
-- `docs/PROTOCOL.md` 為舊版 WebSocket 協定，純手機端架構下**不再使用**，可保留作參考或刪除。
+- `docs/PROTOCOL.md` 為舊版 WebSocket 協定，純手機端架構下**不再使用**，可保留作參考或刪除。裝置端權限與 Agent 工具請見 **README** 與 **[AI_AGENT.md](AI_AGENT.md)**。
 - 若未來擴充「電腦遠端控制」功能，可再引入後端與 WebSocket。
 
 ---
@@ -105,9 +105,9 @@
 ## A. Android Developer
 
 ### Responsibility Scope
-- **Core Layer**: AccessibilityService, ViewTreeParser, ActionExecutor, IntentRouter, SensitiveFilter, OverlayService
+- **Core Layer**: AccessibilityService, ViewTreeParser, ActionExecutor, IntentRouter, SensitiveFilter, OverlayService, screen capture, internal playback audio capture (MediaProjection / `PlaybackAudioCapture`)
 - **Business Layer**: ScriptStore (Room), ScriptExecutor, Scheduler (WorkManager)
-- **UI Layer**: Script List, Script Editor, Schedule Settings, Execution History
+- **UI Layer**: Script List, Script Editor, Schedule Settings, Execution History, **Settings → Permission settings**, Chat and permission entry points
 
 ### Reference Documents
 1. `docs/PROJECT_PLAN.md` — Full document (Architecture, Modules, Data Models, Milestones)
@@ -166,5 +166,5 @@ Tech Stack: Kotlin, minSdk 26, targetSdk 34. UI can use Jetpack Compose or XML. 
 
 ## Notes
 
-- `docs/PROTOCOL.md` is the legacy WebSocket protocol, which is **no longer used** under the mobile-only architecture. It can be kept for reference or deleted.
+- `docs/PROTOCOL.md` is the legacy WebSocket protocol, which is **no longer used** under the mobile-only architecture. It can be kept for reference or deleted. On-device permissions and agent tools are documented in **README** and **[AI_AGENT.md](AI_AGENT.md)**.
 - If the "PC remote control" feature is expanded in the future, backend and WebSocket can be reintroduced.

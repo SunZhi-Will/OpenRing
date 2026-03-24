@@ -28,6 +28,7 @@ object ToolSchemas {
             getCachedScan(),
             summarizeViewTree(),
             describeScreen(),
+            describeAmbientAudio(),
             launchApp(),
             duolingoMatchPick(),
             findAndClick(),
@@ -141,7 +142,7 @@ object ToolSchemas {
 
     private fun describeScreen() = FunctionDeclaration(
         name = "describe_screen",
-        description = "Fallback when the accessibility tree is empty, unreliable, or the UI is WebView/game/custom-rendered: capture the current screen and get a short visual description via Gemini vision (requires API 30+, cloud key). Prefer get_view_tree or summarize_view_tree (text-only compact summary) first; call this when the tree is insufficient and vision is available.",
+        description = "Fallback when the accessibility tree is empty, unreliable, or the UI is WebView/game/custom-rendered: capture the current screen and get a short visual description via Gemini vision (requires API 30+, cloud key). Prefer get_view_tree or summarize_view_tree (text-only compact summary) first; call this when the tree is insufficient and vision is available. Pair with describe_ambient_audio for audio tasks (prefer device playback capture via user-granted MediaProjection; see Permissions).",
         parameters = buildJsonObject {
             put("type", JsonPrimitive("object"))
             putJsonObject("properties") {
@@ -150,6 +151,30 @@ object ToolSchemas {
                     put(
                         "description",
                         JsonPrimitive("Optional focus question, e.g. where is the login button?")
+                    )
+                }
+            }
+        }
+    )
+
+    private fun describeAmbientAudio() = FunctionDeclaration(
+        name = "describe_ambient_audio",
+        description = "Hearing: prefer capturing **device-internal playback** (other apps’ speaker/mix audio) via user-granted MediaProjection (same flow as screen record; enable in OpenRing Permissions). Falls back to microphone if projection is off or playback capture fails. Sends WAV to Gemini for transcription/summary. Use for sound-match or listen-and-tap when UI text is not enough. Requires RECORD_AUDIO and Gemini API key; target apps may disallow playback capture.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("maxDurationSeconds") {
+                    put("type", JsonPrimitive("number"))
+                    put(
+                        "description",
+                        JsonPrimitive("Recording length 1–10 seconds; default 6. Shorter is faster and smaller payload.")
+                    )
+                }
+                putJsonObject("question") {
+                    put("type", JsonPrimitive("string"))
+                    put(
+                        "description",
+                        JsonPrimitive("Optional: what to focus on (e.g. transcribe the spoken word, identify language).")
                     )
                 }
             }

@@ -9,6 +9,7 @@
 ## [未發布] (Unreleased)
 
 ### 新增
+- **設定 → 權限設定**：從「設定」頁可進入與聊天選單相同的權限集中頁（通知、麥克風、手機播放音訊／MediaProjection、懸浮窗、無障礙）；畫面標題統一為權限設定。
 - 專案初始化與基礎架構建立。
 - 基於 `AccessibilityService` 的核心引擎 (View Tree Parser & Action Executor)。
 - 內建的腳本編輯器與管理介面 (Jetpack Compose UI)。
@@ -16,7 +17,7 @@
 - 支援透過 Intent / Deep Link 喚醒目標 App。
 
 ### 變更
-- 無
+- 同步更新 README、`docs/` 內技術／產品文件，反映權限設定頁與 Agent 聽覺（`describe_ambient_audio`、MediaProjection）相關說明。
 
 ### 棄用
 - 無
@@ -45,6 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased]
 
 ### Added
+- **Settings → Permission settings**: entry from the Settings page to the same consolidated permissions screen as the Chat menu (notifications, microphone, device playback audio / MediaProjection, overlay, accessibility); screen title unified as permission settings.
 - Project initialization and basic architecture setup.
 - Core engine based on `AccessibilityService` (View Tree Parser & Action Executor).
 - Built-in script editor and management interface (Jetpack Compose UI).
@@ -52,7 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Support for waking up target apps via Intent / Deep Link.
 
 ### Changed
-- None
+- Documentation refresh across `README*` and `docs/` for **Permission settings** and agent hearing (`describe_ambient_audio`, MediaProjection).
 
 ### Deprecated
 - None
