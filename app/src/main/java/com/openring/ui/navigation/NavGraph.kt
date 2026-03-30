@@ -1,7 +1,12 @@
 package com.openring.ui.navigation
 
+import android.util.Log
+import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import com.openring.core.CloudRelayTaskBus
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -21,6 +26,8 @@ import com.openring.ui.screens.SystemPromptEditScreen
 import com.openring.ui.screens.TextSettingEditorScreen
 import com.openring.ui.screens.PermissionsScreen
 import com.openring.ui.screens.LanguageSettingsScreen
+import com.openring.ui.screens.CloudRelayScreen
+import com.openring.ui.MainActivity
 
 sealed class Screen(val route: String) {
     data object Chat : Screen("chat")
@@ -39,12 +46,31 @@ sealed class Screen(val route: String) {
     data object AutoScan : Screen("ai/auto_scan")
     data object AiModelSettings : Screen("ai/model_settings")
     data object LanguageSettings : Screen("app/language_settings")
+    data object CloudRelay : Screen("app/cloud_relay")
 }
 
 @Composable
 fun OpenRingNavHost(
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    relayIntentNonce: Int = 0,
 ) {
+    val context = LocalContext.current
+    LaunchedEffect(relayIntentNonce) {
+        val act = context as? ComponentActivity ?: return@LaunchedEffect
+        val intent = act.intent
+        val relayText = intent.getStringExtra(MainActivity.EXTRA_RELAY_TASK_TEXT)?.trim()
+        if (!relayText.isNullOrEmpty()) {
+            val ok = CloudRelayTaskBus.tryEnqueueFromRelay(relayText)
+            Log.d("OpenRingNav", "relay task from intent len=${relayText.length} tryEmit=$ok")
+            intent.removeExtra(MainActivity.EXTRA_RELAY_TASK_TEXT)
+        }
+        if (intent.getBooleanExtra(MainActivity.EXTRA_OPEN_CHAT_FROM_RELAY, false)) {
+            navController.navigate(Screen.Chat.route) {
+                launchSingleTop = true
+            }
+            intent.removeExtra(MainActivity.EXTRA_OPEN_CHAT_FROM_RELAY)
+        }
+    }
     NavHost(
         navController = navController,
         startDestination = Screen.Chat.route
@@ -55,7 +81,8 @@ fun OpenRingNavHost(
                 onNavigateToSkills = { navController.navigate(Screen.AiSettings.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                 onNavigateToExecutionLog = { navController.navigate(Screen.ExecutionLog.route) },
-                onNavigateToPermissions = { navController.navigate(Screen.Permissions.route) }
+                onNavigateToPermissions = { navController.navigate(Screen.Permissions.route) },
+                onNavigateToCloudRelay = { navController.navigate(Screen.CloudRelay.route) }
             )
         }
         composable(Screen.ExecutionLog.route) {
@@ -88,8 +115,12 @@ fun OpenRingNavHost(
                 onBack = { navController.popBackStack() },
                 onNavigateToLanguageSettings = { navController.navigate(Screen.LanguageSettings.route) },
                 onNavigateToPermissionSettings = { navController.navigate(Screen.Permissions.route) },
+                onNavigateToCloudRelay = { navController.navigate(Screen.CloudRelay.route) },
                 screenMode = SettingsScreenMode.GENERAL
             )
+        }
+        composable(Screen.CloudRelay.route) {
+            CloudRelayScreen(onBack = { navController.popBackStack() })
         }
         composable(Screen.AiModelSettings.route) {
             SettingsScreen(

@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -111,6 +112,7 @@ import com.openring.agent.RunCancellationRegistry
 import com.openring.agent.ToolSchemas
 import com.openring.core.BackgroundWorkTracker
 import com.openring.core.ChatReloadBus
+import com.openring.core.CloudRelayTaskBus
 import com.openring.core.OverlayService
 import com.openring.data.ChatRepository
 import com.openring.data.MemoryRepository
@@ -125,8 +127,12 @@ import com.openring.security.ApiKeyStore
 import com.openring.settings.ModelStore
 import com.openring.ui.notifications.AiRunNotification
 import com.openring.ui.theme.Spacing
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -172,6 +178,7 @@ fun ChatScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToExecutionLog: () -> Unit,
     onNavigateToPermissions: () -> Unit,
+    onNavigateToCloudRelay: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -422,7 +429,24 @@ fun ChatScreen(
 
     fun startRun(text: String, tryStartOverlay: Boolean) {
         val trimmed = text.trim()
-        if (running || trimmed.isBlank() || !canRunChat) return
+        if (trimmed.isBlank()) return
+        if (running) {
+            Log.w("OpenRing", "startRun skipped: already running")
+            Toast.makeText(context, "執行中請稍候", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!canRunChat) {
+            Log.w(
+                "OpenRing",
+                "startRun skipped: no runnable model (need Gemini API key or downloaded local GGUF)"
+            )
+            Toast.makeText(
+                context,
+                "目前無法開始聊天：請（1）為至少一個 Gemini 填入 API Key，或（2）新增地端模型並完成 GGUF 下載。",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
         processingText = "正在處理中…"
         running = true
         permissionReminderShownThisRun = false
@@ -445,7 +469,11 @@ fun ChatScreen(
                 Log.w("OpenRing", "AI Overlay 啟動失敗，改用通知中斷", e)
             }
         }
-        scope.launch {
+        // IMPORTANT: startRun can outlive the ChatScreen composition (e.g. navigation/recomposition).
+        // Using the remembered `scope` here can trigger ForgottenCoroutineScopeException.
+        // Create a run-scoped coroutine scope per execution so callbacks remain valid.
+        val runScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        runScope.launch {
             BackgroundWorkTracker.acquire(context)
             try {
                 val chatSid = withContext(Dispatchers.IO) {
@@ -504,8 +532,10 @@ fun ChatScreen(
                                         maxRounds = maxRounds,
                                         shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
                                         onTurn = { turn ->
-                                            scope.launch(Dispatchers.Main) { recordTurnToLog(turn) }
-                                            scope.launch(Dispatchers.IO) {
+                                            runScope.launch(Dispatchers.Main) {
+                                                recordTurnToLog(turn)
+                                            }
+                                            runScope.launch(Dispatchers.IO) {
                                                 val toolName = turn.toolName ?: return@launch
                                                 when (turn.role) {
                                                     "tool_call" -> {
@@ -595,8 +625,10 @@ fun ChatScreen(
                                         toolCatalogText = toolCatalog,
                                         shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
                                         onTurn = { turn ->
-                                            scope.launch(Dispatchers.Main) { recordTurnToLog(turn) }
-                                            scope.launch(Dispatchers.IO) {
+                                            runScope.launch(Dispatchers.Main) {
+                                                recordTurnToLog(turn)
+                                            }
+                                            runScope.launch(Dispatchers.IO) {
                                                 val toolName = turn.toolName ?: return@launch
                                                 when (turn.role) {
                                                     "tool_call" -> {
@@ -626,7 +658,7 @@ fun ChatScreen(
                                             }
                                         },
                                         onStatus = { msg ->
-                                            scope.launch(Dispatchers.Main) {
+                                            runScope.launch(Dispatchers.Main) {
                                                 updateProcessingText(msg)
                                                 val idx = messages.indexOfFirst { it.id == placeholderId }
                                                 if (idx >= 0) {
@@ -720,6 +752,17 @@ fun ChatScreen(
                 runningSessionId = null
                 running = false
                 BackgroundWorkTracker.release(context)
+                runScope.cancel()
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        CloudRelayTaskBus.tasks.collect { text ->
+            val t = text.trim()
+            Log.d("CloudRelayTask", "ChatScreen received relay len=${t.length}")
+            if (t.isNotEmpty()) {
+                startRun(t, tryStartOverlay = true)
             }
         }
     }
@@ -841,6 +884,16 @@ fun ChatScreen(
                                 },
                                 leadingIcon = {
                                     Icon(Icons.Default.Apps, contentDescription = null)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.menu_cloud_relay)) },
+                                onClick = {
+                                    moreMenuExpanded = false
+                                    onNavigateToCloudRelay()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Cloud, contentDescription = null)
                                 }
                             )
                             DropdownMenuItem(

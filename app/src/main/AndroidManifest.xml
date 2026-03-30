@@ -22,6 +22,7 @@
 
     <application
         android:name=".OpenRingApp"
+        android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -70,6 +71,15 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="scheduler" />
+        </service>
+
+        <service
+            android:name=".core.OpenRingCloudRelayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="cloud_relay" />
         </service>
 
         <!-- MediaProjection：擷取他 App 播放音訊（Android 10+；Android 14+ 需此前台服務類型） -->

@@ -11,7 +11,7 @@ import java.io.StringWriter
 
 /**
  * OpenRing Application
- * 純手機端架構 — 無 Web 控制台、無後端
+ * 手機端為主；可選連線本機 WebSocket 中繼（OpenRing Cloud）接收 RUN_SCRIPT。
  */
 class OpenRingApp : Application() {
 

@@ -21,6 +21,9 @@ interface ScriptDao {
     @Query("SELECT * FROM scripts WHERE id = :id")
     suspend fun getScriptById(id: String): Script?
 
+    @Query("SELECT * FROM scripts WHERE name = :name LIMIT 1")
+    suspend fun getScriptByName(name: String): Script?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(script: Script)
 
