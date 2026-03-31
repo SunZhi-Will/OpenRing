@@ -89,7 +89,7 @@ dependencies {
     ksp("androidx.room:room-compiler:$roomVersion")
 
     // WorkManager
-    implementation("androidx.work:work-runtime-ktx:2.11.1")
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
 
     // Kotlin Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
