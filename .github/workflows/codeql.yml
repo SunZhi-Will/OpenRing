@@ -26,6 +26,9 @@ jobs:
     env:
       # Third-party actions still on Node 20; opt into Node 24 per https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      # Temporary workaround: CodeQL currently does not support Kotlin 2.3.20 yet.
+      # Keep Java analysis enabled and re-enable Kotlin extraction once CodeQL adds support.
+      CODEQL_EXTRACTOR_JAVA_AGENT_DISABLE_KOTLIN: true
     steps:
       - name: Checkout
         uses: actions/checkout@v6
