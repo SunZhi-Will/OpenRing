@@ -107,5 +107,5 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0")
 
     // On-device GGUF inference (text); see https://github.com/CodeShipping/llama-kotlin-android
-    implementation("org.codeshipping:llama-kotlin-android:0.1.0")
+    implementation("org.codeshipping:llama-kotlin-android:0.1.3")
 }
