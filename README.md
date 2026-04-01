@@ -1,4 +1,14 @@
 <div align="center">
+  <a href="https://tally.so/r/your-openring-waitlist-id">
+    <img src="docs/assets/openring-cloud-dashboard-concept.svg" alt="OpenRing Cloud Dashboard Concept for Android RPA and Multiple Device Control" width="1200">
+  </a>
+  
+  <br/><br/>
+  
+  [![Join OpenRing Cloud Private Beta (Waitlist)](https://img.shields.io/badge/%F0%9F%9A%80%20Join%20OpenRing%20Cloud%20Private%20Beta%20(Waitlist)-FF6B00?style=for-the-badge)](https://tally.so/r/your-openring-waitlist-id)
+  
+  <br/><br/>
+  
   <img src="docs/assets/openring-logo.png" alt="OpenRing logo" width="128" height="128">
   
   <h1>OpenRing</h1>
@@ -21,6 +31,8 @@
 <br/>
 
 ## 📖 Introduction
+
+OpenRing helps teams searching for **Android RPA**, **multiple device control**, and **AI-powered mobile automation** deploy reliable, phone-first workflows with no root and no custom backend.
 
 OpenRing is a **local Android automation agent** that moves across apps with **AccessibilityService**–driven semantics: it reads structured UI trees, runs **scripts and schedules**, and—through **Chat‑Driven OS**—uses **Gemini function calling (ReAct)** or **on-device GGUF models** to plan, call tools, and complete tasks.
 

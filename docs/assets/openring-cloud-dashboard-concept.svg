@@ -1,0 +1,71 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">OpenRing Cloud Dashboard Concept</title>
+  <desc id="desc">A conceptual dashboard for Android RPA and multiple device control.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1020"/>
+      <stop offset="100%" stop-color="#111b38"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1f2f5a"/>
+      <stop offset="100%" stop-color="#162447"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#28d8ff"/>
+      <stop offset="100%" stop-color="#7f5bff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="1300" cy="120" r="220" fill="#3558ff" opacity="0.14"/>
+  <circle cx="200" cy="760" r="260" fill="#2ce6ff" opacity="0.10"/>
+
+  <rect x="70" y="70" width="1460" height="760" rx="28" fill="#0f1730" stroke="#2e4b86" stroke-width="2"/>
+
+  <rect x="110" y="115" width="1380" height="72" rx="16" fill="#132041"/>
+  <text x="140" y="160" fill="#e6eeff" font-size="34" font-family="Arial, sans-serif" font-weight="700">OpenRing Cloud Dashboard</text>
+  <text x="980" y="160" fill="#9cb4e4" font-size="24" font-family="Arial, sans-serif">Android RPA - Multiple Device Control</text>
+
+  <rect x="110" y="220" width="300" height="560" rx="20" fill="url(#card)" filter="url(#shadow)"/>
+  <text x="145" y="275" fill="#dce7ff" font-size="28" font-family="Arial, sans-serif" font-weight="700">Device Fleet</text>
+  <g fill="#9fd5ff" font-family="Arial, sans-serif" font-size="22">
+    <text x="145" y="325">- Pixel-01   Online</text>
+    <text x="145" y="365">- Galaxy-02  Running</text>
+    <text x="145" y="405">- Xiaomi-03  Idle</text>
+    <text x="145" y="445">- OnePlus-04 Queued</text>
+    <text x="145" y="485">- Vivo-05    Running</text>
+  </g>
+
+  <rect x="450" y="220" width="480" height="260" rx="20" fill="url(#card)" filter="url(#shadow)"/>
+  <text x="485" y="275" fill="#dce7ff" font-size="28" font-family="Arial, sans-serif" font-weight="700">Automation Pipeline</text>
+  <rect x="485" y="308" width="410" height="20" rx="10" fill="#223763"/>
+  <rect x="485" y="308" width="300" height="20" rx="10" fill="url(#accent)"/>
+  <text x="485" y="360" fill="#a9c2f5" font-size="22" font-family="Arial, sans-serif">Jobs Running: 12</text>
+  <text x="485" y="395" fill="#a9c2f5" font-size="22" font-family="Arial, sans-serif">Success Rate: 99.1%</text>
+  <text x="485" y="430" fill="#a9c2f5" font-size="22" font-family="Arial, sans-serif">Avg Latency: 320ms</text>
+
+  <rect x="960" y="220" width="530" height="560" rx="20" fill="url(#card)" filter="url(#shadow)"/>
+  <text x="995" y="275" fill="#dce7ff" font-size="28" font-family="Arial, sans-serif" font-weight="700">Live Mission Feed</text>
+  <g font-family="Arial, sans-serif" font-size="21">
+    <text x="995" y="325" fill="#7df7be">[OK]</text>
+    <text x="1070" y="325" fill="#bed3ff">Checkout flow completed on Pixel-01</text>
+    <text x="995" y="365" fill="#7df7be">[OK]</text>
+    <text x="1070" y="365" fill="#bed3ff">Coupon automation done on Galaxy-02</text>
+    <text x="995" y="405" fill="#ffd96b">[RUN]</text>
+    <text x="1070" y="405" fill="#bed3ff">Form submit macro in progress (3/5)</text>
+    <text x="995" y="445" fill="#ff9aa8">[WARN]</text>
+    <text x="1070" y="445" fill="#bed3ff">UI changed, fallback by semantic tree</text>
+  </g>
+
+  <rect x="450" y="510" width="480" height="270" rx="20" fill="url(#card)" filter="url(#shadow)"/>
+  <text x="485" y="565" fill="#dce7ff" font-size="28" font-family="Arial, sans-serif" font-weight="700">AI Agent Console</text>
+  <text x="485" y="610" fill="#a9c2f5" font-size="22" font-family="Arial, sans-serif">Intent: "Batch reorder apps &amp; submit forms"</text>
+  <text x="485" y="645" fill="#a9c2f5" font-size="22" font-family="Arial, sans-serif">Tools: get_view_tree, describe_screen, call_skill</text>
+  <text x="485" y="680" fill="#7df7be" font-size="22" font-family="Arial, sans-serif">Plan generated and dispatched to 5 devices.</text>
+
+  <rect x="1160" y="740" width="300" height="50" rx="25" fill="url(#accent)"/>
+  <text x="1210" y="772" fill="#ffffff" font-size="22" font-family="Arial, sans-serif" font-weight="700">Join Private Beta</text>
+</svg>

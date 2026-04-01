@@ -1,4 +1,14 @@
 <div align="center">
+  <a href="https://tally.so/r/your-openring-waitlist-id">
+    <img src="docs/assets/openring-cloud-dashboard-concept.svg" alt="OpenRing Cloud Dashboard 概念圖（Android RPA / Multiple Device Control）" width="1200">
+  </a>
+  
+  <br/><br/>
+  
+  [![Join OpenRing Cloud Private Beta (Waitlist)](https://img.shields.io/badge/%F0%9F%9A%80%20Join%20OpenRing%20Cloud%20Private%20Beta%20(Waitlist)-FF6B00?style=for-the-badge)](https://tally.so/r/your-openring-waitlist-id)
+  
+  <br/><br/>
+  
   <img src="docs/assets/openring-logo.png" alt="OpenRing 標誌" width="128" height="128">
   
   <h1>OpenRing</h1>
@@ -21,6 +31,8 @@
 <br/>
 
 ## 📖 專案簡介
+
+如果你正在 GitHub 尋找 **Android RPA**、**multiple device control** 或 **AI 手機自動化**，OpenRing 提供免 Root、手機端優先、可對話驅動的自動化工作流能力。
 
 OpenRing 是基於 **無障礙服務** 的 **Android 自動化 Agent**：可解析語意化 UI 樹、執行 **腳本與排程**，並透過 **Chat‑Driven OS** 以 **Gemini 函式呼叫（ReAct）** 或 **本機 GGUF** 模型推理，完成讀畫面、呼叫工具、輸入與點擊等閉環。
 
