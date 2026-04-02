@@ -51,6 +51,7 @@ import androidx.core.content.ContextCompat
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.openring.BuildConfig
 import com.openring.R
 import com.openring.core.OpenRingCloudRelayBridge
 import com.openring.core.OpenRingCloudRelayService
@@ -94,6 +95,7 @@ fun CloudRelayScreen(onBack: () -> Unit) {
             scanLauncher.launch(
                 ScanOptions().apply {
                     setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                    setOrientationLocked(true)
                     setPrompt(context.getString(R.string.cloud_relay_scan_prompt))
                     setBeepEnabled(false)
                 }
@@ -107,6 +109,7 @@ fun CloudRelayScreen(onBack: () -> Unit) {
                 scanLauncher.launch(
                     ScanOptions().apply {
                         setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                        setOrientationLocked(true)
                         setPrompt(context.getString(R.string.cloud_relay_scan_prompt))
                         setBeepEnabled(false)
                     }
@@ -228,6 +231,11 @@ fun CloudRelayScreen(onBack: () -> Unit) {
                 text = stringResource(R.string.cloud_relay_url_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.tertiary
+            )
+            Text(
+                text = stringResource(R.string.cloud_relay_build_label, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.9f)
             )
             OutlinedTextField(
                 value = url,

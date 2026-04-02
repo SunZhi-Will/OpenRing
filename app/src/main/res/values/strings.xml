@@ -188,6 +188,7 @@
     <string name="cloud_relay_status_disconnected">Disconnected (will retry while connected)</string>
     <string name="cloud_relay_status_failed">Connection failed</string>
     <string name="cloud_relay_url_hint">Phone cannot use localhost. Use your PC LAN IP, e.g. ws://192.168.0.12:8080</string>
+    <string name="cloud_relay_build_label">App version %1$s (code %2$d). Reinstall from this repo if the web console shows no relay logs or history.</string>
     <string name="cloud_relay_scan_qr">Scan QR code</string>
     <string name="cloud_relay_scan_prompt">Align the relay QR code</string>
     <string name="cloud_relay_invalid_qr">Unrecognized QR (need ws:// or OpenRing relay link)</string>

@@ -23,8 +23,8 @@ android {
         applicationId = "com.openring"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "0.1.1"
+        versionCode = 4
+        versionName = "0.1.2"
         // llama-kotlin-android / llama.cpp：實機以 arm64 為主；模擬器用 x86_64。
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -52,6 +52,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
