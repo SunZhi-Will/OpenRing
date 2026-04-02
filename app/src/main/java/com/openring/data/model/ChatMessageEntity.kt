@@ -23,5 +23,7 @@ data class ChatMessageEntity(
     /** "user" | "model" */
     val role: String,
     val body: String,
+    /** JSON array of [com.openring.chat.ChatAttachmentPayload], empty string if none */
+    val attachmentsJson: String = "",
     val createdAtMs: Long
 )

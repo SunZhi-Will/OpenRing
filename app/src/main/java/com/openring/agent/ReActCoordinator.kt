@@ -59,6 +59,8 @@ class ReActCoordinator(
         userText: String,
         /** 先前對話輪次（user/model 文字），會置於本次 userText 之前送給模型。 */
         priorContents: List<Content> = emptyList(),
+        /** 本輪 user 訊息額外 Part（附檔：文字分段、PDF/圖片 inlineData），接在 userText 之後。 */
+        extraUserParts: List<Part> = emptyList(),
         maxRounds: Int = 30,
         shouldCancel: () -> Boolean = { false },
         onTurn: (Turn) -> Unit = {}
@@ -71,7 +73,15 @@ class ReActCoordinator(
         val coercedPrior = if (priorContents.size > 24) priorContents.takeLast(24) else priorContents
         val contents = mutableListOf<Content>().apply {
             addAll(coercedPrior)
-            add(Content(role = "user", parts = listOf(Part(text = userText))))
+            add(
+                Content(
+                    role = "user",
+                    parts = buildList {
+                        add(Part(text = userText))
+                        addAll(extraUserParts)
+                    }
+                )
+            )
             if (isOfficialSkillRequest(userText)) {
                 add(
                     Content(

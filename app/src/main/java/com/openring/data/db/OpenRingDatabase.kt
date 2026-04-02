@@ -34,7 +34,7 @@ import com.openring.data.model.Script
         MemoryVectorChunkEntity::class,
         PromptNoteEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class OpenRingDatabase : RoomDatabase() {
@@ -93,6 +93,14 @@ abstract class OpenRingDatabase : RoomDatabase() {
                 )
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_execution_log_entries_sessionId_createdAtMs` ON `execution_log_entries` (`sessionId`, `createdAtMs`)"
+                )
+            }
+        }
+
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE chat_messages ADD COLUMN attachmentsJson TEXT NOT NULL DEFAULT ''"
                 )
             }
         }
@@ -168,7 +176,7 @@ abstract class OpenRingDatabase : RoomDatabase() {
                     OpenRingDatabase::class.java,
                     "openring_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build()
                     .also { INSTANCE = it }
             }

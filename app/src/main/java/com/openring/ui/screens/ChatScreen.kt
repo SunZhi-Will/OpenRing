@@ -1,5 +1,7 @@
 package com.openring.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -36,6 +38,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -53,6 +56,7 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -72,6 +76,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -111,6 +116,9 @@ import com.openring.agent.LocalReActCoordinator
 import com.openring.agent.ReActCoordinator
 import com.openring.agent.RunCancellationRegistry
 import com.openring.agent.ToolSchemas
+import com.openring.chat.ChatAttachmentLoader
+import com.openring.chat.ChatAttachmentModelParts
+import com.openring.chat.ChatAttachmentPayload
 import com.openring.core.BackgroundWorkTracker
 import com.openring.core.ChatReloadBus
 import com.openring.core.CloudRelayTaskBus
@@ -118,12 +126,10 @@ import com.openring.core.OpenRingCloudRelayBridge
 import com.openring.core.OverlayService
 import com.openring.data.ChatRepository
 import com.openring.data.MemoryRepository
-import com.openring.data.PromptNoteRepository
 import com.openring.data.ScriptStore
 import com.openring.data.db.OpenRingDatabase
 import com.openring.data.model.ChatMessageEntity
 import com.openring.data.model.ChatSession
-import com.openring.data.model.PromptNoteEntity
 import com.openring.localmodel.LocalLlmChatPrompt
 import com.openring.localmodel.LocalModelCatalog
 import com.openring.localmodel.LocalLlmEngine
@@ -190,10 +196,32 @@ fun ChatScreen(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    val pendingAttachments = remember { mutableStateListOf<ChatAttachmentPayload>() }
+    val pickAttachmentsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch(Dispatchers.IO) {
+            for (uri in uris) {
+                val r = ChatAttachmentLoader.load(context, uri)
+                withContext(Dispatchers.Main) {
+                    r.fold(
+                        onSuccess = { pendingAttachments.add(it) },
+                        onFailure = { e ->
+                            val msg = when (e.message) {
+                                "FILE_TOO_LARGE" -> context.getString(R.string.chat_attachment_too_large)
+                                else -> context.getString(R.string.chat_attachment_read_failed)
+                            }
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
+        }
+    }
     val coordinator = remember { ReActCoordinator(context) }
     val localReActCoordinator = remember { LocalReActCoordinator(context) }
     val chatRepository = remember { ChatRepository(context) }
-    val promptNoteRepository = remember { PromptNoteRepository(context) }
     val memoryRepository = remember { MemoryRepository(context) }
     val keyStore = remember { ApiKeyStore(context) }
     val modelStore = remember { ModelStore(context) }
@@ -220,7 +248,8 @@ fun ChatScreen(
         val id: String,
         val role: String,
         val text: String,
-        val createdAtMs: Long
+        val createdAtMs: Long,
+        val attachments: List<ChatAttachmentPayload> = emptyList(),
     )
 
     fun nowMs(): Long = System.currentTimeMillis()
@@ -231,16 +260,13 @@ fun ChatScreen(
     var activeChatSessionId by remember { mutableStateOf<String?>(null) }
     var input by remember { mutableStateOf("") }
     var sessionSheetOpen by remember { mutableStateOf(false) }
-    var notesPickerOpen by remember { mutableStateOf(false) }
-    var notesForPicker by remember { mutableStateOf<List<PromptNoteEntity>>(emptyList()) }
     var moreMenuExpanded by remember { mutableStateOf(false) }
     var sessionsForPicker by remember { mutableStateOf<List<ChatSession>>(emptyList()) }
     var sessionPendingDelete by remember { mutableStateOf<ChatSession?>(null) }
     val sessionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val notesSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var running by remember { mutableStateOf(false) }
     var runningSessionId by remember { mutableStateOf<String?>(null) }
-    var overlayPermissionDialogText by remember { mutableStateOf<String?>(null) }
+    var overlayPendingRun by remember { mutableStateOf<Pair<String, List<ChatAttachmentPayload>>?>(null) }
     data class PermissionReminder(val title: String, val message: String)
     var permissionReminder by remember { mutableStateOf<PermissionReminder?>(null) }
     var permissionReminderShownThisRun by remember { mutableStateOf(false) }
@@ -263,7 +289,8 @@ fun ChatScreen(
                                 id = m.id,
                                 role = m.role,
                                 text = m.body,
-                                createdAtMs = m.createdAtMs
+                                createdAtMs = m.createdAtMs,
+                                attachments = chatRepository.parseAttachments(m.attachmentsJson)
                             )
                         )
                     }
@@ -286,7 +313,8 @@ fun ChatScreen(
                             id = m.id,
                             role = m.role,
                             text = m.body,
-                            createdAtMs = m.createdAtMs
+                            createdAtMs = m.createdAtMs,
+                            attachments = chatRepository.parseAttachments(m.attachmentsJson)
                         )
                     )
                 }
@@ -309,7 +337,8 @@ fun ChatScreen(
                                 id = m.id,
                                 role = m.role,
                                 text = m.body,
-                                createdAtMs = m.createdAtMs
+                                createdAtMs = m.createdAtMs,
+                                attachments = chatRepository.parseAttachments(m.attachmentsJson)
                             )
                         )
                     }
@@ -323,14 +352,6 @@ fun ChatScreen(
         if (sessionSheetOpen) {
             sessionsForPicker = withContext(Dispatchers.IO) {
                 chatRepository.listSessions(100)
-            }
-        }
-    }
-
-    LaunchedEffect(notesPickerOpen) {
-        if (notesPickerOpen) {
-            notesForPicker = withContext(Dispatchers.IO) {
-                promptNoteRepository.listAllOrdered()
             }
         }
     }
@@ -446,9 +467,14 @@ fun ChatScreen(
         }
     }
 
-    fun startRun(text: String, tryStartOverlay: Boolean, fromRelay: Boolean = false) {
+    fun startRun(
+        text: String,
+        tryStartOverlay: Boolean,
+        fromRelay: Boolean = false,
+        attachments: List<ChatAttachmentPayload> = emptyList(),
+    ) {
         val trimmed = text.trim()
-        if (trimmed.isBlank()) return
+        if (trimmed.isBlank() && attachments.isEmpty()) return
         if (running) {
             Log.w("OpenRing", "startRun skipped: already running")
             Toast.makeText(context, "執行中請稍候", Toast.LENGTH_SHORT).show()
@@ -505,14 +531,16 @@ fun ChatScreen(
                 val userMsgId = UUID.randomUUID().toString()
                 val userTs = nowMs()
                 withContext(Dispatchers.IO) {
-                    chatRepository.addUserMessage(chatSid, userMsgId, trimmed)
+                    val enc = chatRepository.encodeAttachments(attachments)
+                    chatRepository.addUserMessage(chatSid, userMsgId, trimmed, enc)
                 }
                 messages.add(
                     ChatMessage(
                         id = userMsgId,
                         role = "user",
                         text = trimmed,
-                        createdAtMs = userTs
+                        createdAtMs = userTs,
+                        attachments = attachments
                     )
                 )
                 var streamedLocalModelMessageId: String? = null
@@ -532,22 +560,28 @@ fun ChatScreen(
                                     ActiveChatContext.sessionId = chatSid
                                     ActiveChatContext.geminiApiKey = key
                                     ActiveChatContext.geminiModel = opt.model
+                                    val memoryQuery = trimmed.ifBlank {
+                                        attachments.joinToString(", ") { it.displayName }
+                                    }
                                     val injection = try {
-                                        memoryRepository.buildContextInjection(key, chatSid, trimmed)
+                                        memoryRepository.buildContextInjection(key, chatSid, memoryQuery)
                                     } catch (e: Exception) {
                                         Log.w("OpenRing", "Long-term memory injection failed", e)
                                         ""
                                     }
+                                    val coreUser = trimmed.ifBlank { "請根據附檔內容回答。" }
                                     val userForModel = if (injection.isBlank()) {
-                                        trimmed
+                                        coreUser
                                     } else {
-                                        "[Long-term memory context — use if relevant]\n$injection\n\n---\nUser message:\n$trimmed"
+                                        "[Long-term memory context — use if relevant]\n$injection\n\n---\nUser message:\n$coreUser"
                                     }
+                                    val extraParts = attachments.flatMap { ChatAttachmentModelParts.toGeminiParts(it) }
                                     val r = coordinator.run(
                                         apiKey = key,
                                         model = opt.model,
                                         userText = userForModel,
                                         priorContents = priorContents,
+                                        extraUserParts = extraParts,
                                         maxRounds = maxRounds,
                                         shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
                                         onTurn = { turn ->
@@ -696,13 +730,21 @@ fun ChatScreen(
                                         }
                                         return@withContext r.finalText
                                     } else {
+                                        val attachLocal = attachments.joinToString("\n\n") {
+                                            ChatAttachmentModelParts.toLocalTextBlock(it)
+                                        }
+                                        val currentUserMessage = when {
+                                            attachLocal.isBlank() -> trimmed
+                                            trimmed.isBlank() -> attachLocal
+                                            else -> "$trimmed\n\n$attachLocal"
+                                        }
                                         val style = LocalLlmChatPrompt.styleForCatalogId(opt.model)
                                         val localPrompt = LocalLlmChatPrompt.buildPrompt(
                                             style = style,
                                             systemPrompt = aiPromptStore.getSystemPrompt(),
                                             memoryInjection = memInject,
                                             priorContents = priorContents,
-                                            currentUserMessage = trimmed,
+                                            currentUserMessage = currentUserMessage,
                                         )
                                         val text = LocalLlmEngine.generate(
                                             context = context,
@@ -1063,17 +1105,18 @@ fun ChatScreen(
                         }
 
                         items(messages.asReversed(), key = { it.id }) { msg ->
+                            val bubbleText = formatUserBubbleText(msg.text, msg.attachments)
                             MessageRow(
                                 isUser = msg.role == "user",
                                 timeText = formatTime(msg.createdAtMs),
-                                text = msg.text,
+                                text = bubbleText,
                                 maxBubbleWidth = maxBubbleWidth,
                                 onCopy = {
-                                    clipboard.setText(AnnotatedString(msg.text))
+                                    clipboard.setText(AnnotatedString(bubbleText))
                                     Toast.makeText(context, "已複製訊息", Toast.LENGTH_SHORT).show()
                                 },
                                 onRerun = {
-                                    if (msg.text.isBlank()) return@MessageRow
+                                    if (msg.text.isBlank() && msg.attachments.isEmpty()) return@MessageRow
                                     if (running) {
                                         Toast.makeText(context, "目前正在執行，請稍後再重跑", Toast.LENGTH_SHORT).show()
                                         return@MessageRow
@@ -1083,10 +1126,11 @@ fun ChatScreen(
                                         return@MessageRow
                                     }
                                     val rerunText = msg.text.trim()
+                                    val rerunAttach = msg.attachments
                                     if (!Settings.canDrawOverlays(context)) {
-                                        overlayPermissionDialogText = rerunText
+                                        overlayPendingRun = rerunText to rerunAttach
                                     } else {
-                                        startRun(rerunText, tryStartOverlay = true)
+                                        startRun(rerunText, tryStartOverlay = true, attachments = rerunAttach)
                                     }
                                 }
                             )
@@ -1115,37 +1159,70 @@ fun ChatScreen(
                         tonalElevation = 0.dp
                     ) {
                         // 須與 canRunChat 一致：僅地端模型時 runnableGemini 為空，但仍應可送出。
-                        val canSend = !running && input.isNotBlank() && canRunChat
+                        val canSend = !running && canRunChat && (input.isNotBlank() || pendingAttachments.isNotEmpty())
                         val canCancel = running && runningSessionId != null
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(MaterialTheme.shapes.extraLarge)
-                                .background(MaterialTheme.colorScheme.surface),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
-                        ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            if (pendingAttachments.isNotEmpty()) {
+                                LazyRow(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = Spacing.xs),
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                                ) {
+                                    items(
+                                        pendingAttachments,
+                                        key = { a ->
+                                            a.displayName + a.mimeType + (a.textContent?.length ?: 0) + (a.base64Data?.length ?: 0)
+                                        }
+                                    ) { a ->
+                                        InputChip(
+                                            selected = false,
+                                            onClick = { pendingAttachments.remove(a) },
+                                            label = {
+                                                Text(
+                                                    a.displayName,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            },
+                                            trailingIcon = {
+                                                Icon(
+                                                    Icons.Default.Close,
+                                                    contentDescription = stringResource(R.string.chat_remove_attachment_cd)
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(MaterialTheme.shapes.extraLarge)
+                                    .background(MaterialTheme.colorScheme.surface),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(0.dp)
+                            ) {
                             IconButton(
                                 onClick = {
                                     if (running) {
                                         Toast.makeText(context, "執行中請稍候", Toast.LENGTH_SHORT).show()
                                     } else {
-                                        notesPickerOpen = true
+                                        pickAttachmentsLauncher.launch(arrayOf("*/*"))
                                     }
                                 },
-                                enabled = !running
+                                enabled = !running,
+                                modifier = Modifier.size(40.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.Notes,
-                                    contentDescription = stringResource(R.string.chat_notes_picker_cd)
+                                    Icons.Default.AttachFile,
+                                    contentDescription = stringResource(R.string.chat_attach_files_cd)
                                 )
                             }
                             TextField(
                                 value = input,
                                 onValueChange = { input = it },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(start = Spacing.sm),
+                                modifier = Modifier.weight(1f),
                                 enabled = !running,
                                 placeholder = { Text("輸入任務…") },
                                 maxLines = 4,
@@ -1192,11 +1269,14 @@ fun ChatScreen(
                                             return@IconButton
                                         }
                                         val text = input.trim()
+                                        val attachSnap = pendingAttachments.toList()
+                                        if (text.isBlank() && attachSnap.isEmpty()) return@IconButton
                                         input = ""
+                                        pendingAttachments.clear()
                                         if (!Settings.canDrawOverlays(context)) {
-                                            overlayPermissionDialogText = text
+                                            overlayPendingRun = text to attachSnap
                                         } else {
-                                            startRun(text, tryStartOverlay = true)
+                                            startRun(text, tryStartOverlay = true, attachments = attachSnap)
                                         }
                                     }
                                 ) {
@@ -1206,6 +1286,7 @@ fun ChatScreen(
                                     )
                                 }
                             }
+                            }
                         }
                     }
                 }
@@ -1213,9 +1294,9 @@ fun ChatScreen(
         }
     }
 
-    if (overlayPermissionDialogText != null) {
+    if (overlayPendingRun != null) {
         AlertDialog(
-            onDismissRequest = { overlayPermissionDialogText = null },
+            onDismissRequest = { overlayPendingRun = null },
             title = { Text("需要懸浮窗權限") },
             text = {
                 Text("要顯示 AI 執行中的懸浮中斷按鈕，需先開啟「顯示在其他應用程式上層」。")
@@ -1224,18 +1305,22 @@ fun ChatScreen(
                 TextButton(
                     onClick = {
                         openOverlayPermissionPage()
-                        val text = overlayPermissionDialogText
-                        overlayPermissionDialogText = null
-                        if (!text.isNullOrBlank()) startRun(text, tryStartOverlay = false)
+                        val pending = overlayPendingRun
+                        overlayPendingRun = null
+                        if (pending != null) {
+                            startRun(pending.first, tryStartOverlay = false, attachments = pending.second)
+                        }
                     }
                 ) { Text("前往設定") }
             },
             dismissButton = {
                 TextButton(
                     onClick = {
-                        val text = overlayPermissionDialogText
-                        overlayPermissionDialogText = null
-                        if (!text.isNullOrBlank()) startRun(text, tryStartOverlay = false)
+                        val pending = overlayPendingRun
+                        overlayPendingRun = null
+                        if (pending != null) {
+                            startRun(pending.first, tryStartOverlay = false, attachments = pending.second)
+                        }
                     }
                 ) { Text("先繼續") }
             }
@@ -1304,7 +1389,8 @@ fun ChatScreen(
                                             id = m.id,
                                             role = m.role,
                                             text = m.body,
-                                            createdAtMs = m.createdAtMs
+                                            createdAtMs = m.createdAtMs,
+                                            attachments = chatRepository.parseAttachments(m.attachmentsJson)
                                         )
                                     )
                                 }
@@ -1371,7 +1457,8 @@ fun ChatScreen(
                                                     id = m.id,
                                                     role = m.role,
                                                     text = m.body,
-                                                    createdAtMs = m.createdAtMs
+                                                    createdAtMs = m.createdAtMs,
+                                                    attachments = chatRepository.parseAttachments(m.attachmentsJson)
                                                 )
                                             )
                                         }
@@ -1383,83 +1470,6 @@ fun ChatScreen(
                         }
                     )
                     HorizontalDivider()
-                }
-            }
-        }
-    }
-
-    if (notesPickerOpen) {
-        ModalBottomSheet(
-            onDismissRequest = { notesPickerOpen = false },
-            sheetState = notesSheetState
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp)
-            ) {
-                Text(
-                    stringResource(R.string.chat_notes_picker_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)
-                )
-                if (notesForPicker.isEmpty()) {
-                    Text(
-                        stringResource(R.string.chat_notes_picker_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)
-                    )
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(notesForPicker, key = { it.id }) { note ->
-                            ListItem(
-                                headlineContent = {
-                                    Text(
-                                        note.title.ifBlank { note.id },
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                },
-                                supportingContent = {
-                                    Text(
-                                        if (note.kind == PromptNoteRepository.KIND_SKILL) {
-                                            stringResource(R.string.prompt_notes_kind_skill)
-                                        } else {
-                                            stringResource(R.string.prompt_notes_kind_prompt)
-                                        },
-                                        style = MaterialTheme.typography.labelSmall
-                                    )
-                                },
-                                modifier = Modifier.clickable {
-                                    val block = PromptNoteRepository.formatForChat(note)
-                                    input = if (input.isBlank()) {
-                                        block
-                                    } else {
-                                        input.trimEnd() + "\n\n" + block
-                                    }
-                                    notesPickerOpen = false
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(R.string.chat_notes_inserted_toast),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            )
-                            HorizontalDivider()
-                        }
-                    }
-                }
-                TextButton(
-                    onClick = {
-                        notesPickerOpen = false
-                        onNavigateToPromptNotes()
-                    },
-                    modifier = Modifier.padding(horizontal = Spacing.md)
-                ) {
-                    Text(stringResource(R.string.chat_notes_manage_open))
                 }
             }
         }
@@ -1692,6 +1702,19 @@ fun JsonElementView(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+private fun formatUserBubbleText(text: String, attachments: List<ChatAttachmentPayload>): String {
+    if (attachments.isEmpty()) return text
+    val names = attachments.joinToString(", ") { it.displayName }
+    return buildString {
+        append("📎 ")
+        append(names)
+        if (text.isNotBlank()) {
+            append("\n\n")
+            append(text)
         }
     }
 }

@@ -220,4 +220,8 @@
     <string name="chat_notes_picker_empty">No entries yet. Open Memory library to add one.</string>
     <string name="chat_notes_inserted_toast">Note inserted into input</string>
     <string name="chat_notes_manage_open">Open memory library…</string>
+    <string name="chat_attach_files_cd">Attach files</string>
+    <string name="chat_remove_attachment_cd">Remove attachment</string>
+    <string name="chat_attachment_too_large">File too large (max 8 MB per file)</string>
+    <string name="chat_attachment_read_failed">Could not read file</string>
 </resources>

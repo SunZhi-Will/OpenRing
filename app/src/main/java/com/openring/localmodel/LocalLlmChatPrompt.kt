@@ -78,19 +78,32 @@ object LocalLlmChatPrompt {
         val pairs = mutableListOf<Pair<String, String>>()
         var pendingUser: String? = null
         for (c in contents) {
-            val text = c.parts.firstNotNullOfOrNull { it.text }?.trim().orEmpty()
+            val text = flattenContentPartsToText(c).trim()
             if (text.isEmpty()) continue
             when (c.role) {
                 "user" -> pendingUser = text
                 "model" -> {
-                    if (pendingUser != null) {
-                        pairs.add(pendingUser!! to text)
+                    val u = pendingUser
+                    if (u != null) {
+                        pairs.add(u to text)
                         pendingUser = null
                     }
                 }
             }
         }
         return pairs
+    }
+
+    /** 將多 Part（文字 + 附檔占位）併成單一區塊供本機模型讀取。 */
+    private fun flattenContentPartsToText(c: Content): String {
+        return c.parts.joinToString("\n\n") { part ->
+            val inline = part.inlineData
+            when {
+                part.text != null -> part.text
+                inline != null -> "[inline attachment: ${inline.mimeType}]"
+                else -> ""
+            }
+        }
     }
 
     private fun buildTinyLlamaBlocks(

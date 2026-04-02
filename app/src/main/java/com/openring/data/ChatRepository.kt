@@ -3,11 +3,14 @@ package com.openring.data
 import android.content.Context
 import com.openring.agent.ChatLogEntry
 import com.openring.data.db.OpenRingDatabase
+import com.openring.chat.ChatAttachmentModelParts
+import com.openring.chat.ChatAttachmentPayload
 import com.openring.data.model.ChatMessageEntity
 import com.openring.data.model.ChatSession
 import com.openring.data.model.ExecutionLogEntryEntity
 import com.openring.gemini.model.Content
 import com.openring.gemini.model.Part
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -53,7 +56,7 @@ class ChatRepository(context: Context) {
     suspend fun getMessages(sessionId: String): List<ChatMessageEntity> =
         db().chatMessageDao().getMessagesForSession(sessionId)
 
-    suspend fun addUserMessage(sessionId: String, id: String, body: String) {
+    suspend fun addUserMessage(sessionId: String, id: String, body: String, attachmentsJson: String = "") {
         val now = System.currentTimeMillis()
         db().chatMessageDao().insert(
             ChatMessageEntity(
@@ -61,10 +64,14 @@ class ChatRepository(context: Context) {
                 sessionId = sessionId,
                 role = "user",
                 body = body,
+                attachmentsJson = attachmentsJson,
                 createdAtMs = now
             )
         )
-        touchSession(sessionId, now, titleHint = body)
+        val titleHint = body.replace("\n", " ").trim().ifBlank {
+            firstAttachmentDisplayName(attachmentsJson) ?: ""
+        }
+        touchSession(sessionId, now, titleHint = titleHint.ifBlank { null })
     }
 
     suspend fun addModelMessage(sessionId: String, id: String, body: String) {
@@ -75,6 +82,7 @@ class ChatRepository(context: Context) {
                 sessionId = sessionId,
                 role = "model",
                 body = body,
+                attachmentsJson = "",
                 createdAtMs = now
             )
         )
@@ -146,11 +154,38 @@ class ChatRepository(context: Context) {
     fun messagesToGeminiContents(messages: List<ChatMessageEntity>, maxTurns: Int = 24): List<Content> {
         val tail = if (messages.size > maxTurns) messages.takeLast(maxTurns) else messages
         return tail.map { m ->
+            val parts = mutableListOf<Part>()
+            parts.add(Part(text = m.body))
+            if (m.attachmentsJson.isNotBlank()) {
+                val list = runCatching {
+                    json.decodeFromString(ListSerializer(ChatAttachmentPayload.serializer()), m.attachmentsJson)
+                }.getOrElse { emptyList() }
+                for (a in list) {
+                    parts.addAll(ChatAttachmentModelParts.toGeminiParts(a))
+                }
+            }
             Content(
                 role = if (m.role == "user") "user" else "model",
-                parts = listOf(Part(text = m.body))
+                parts = parts
             )
         }
+    }
+
+    fun parseAttachments(payloadJson: String): List<ChatAttachmentPayload> {
+        if (payloadJson.isBlank()) return emptyList()
+        return runCatching {
+            json.decodeFromString(ListSerializer(ChatAttachmentPayload.serializer()), payloadJson)
+        }.getOrElse { emptyList() }
+    }
+
+    fun encodeAttachments(list: List<ChatAttachmentPayload>): String {
+        if (list.isEmpty()) return ""
+        return json.encodeToString(ListSerializer(ChatAttachmentPayload.serializer()), list)
+    }
+
+    private fun firstAttachmentDisplayName(attachmentsJson: String): String? {
+        if (attachmentsJson.isBlank()) return null
+        return parseAttachments(attachmentsJson).firstOrNull()?.displayName
     }
 
     companion object {

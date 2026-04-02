@@ -220,4 +220,8 @@
     <string name="chat_notes_picker_empty">尚無項目，請到記憶庫新增。</string>
     <string name="chat_notes_inserted_toast">已插入到輸入框</string>
     <string name="chat_notes_manage_open">開啟記憶庫…</string>
+    <string name="chat_attach_files_cd">附加檔案</string>
+    <string name="chat_remove_attachment_cd">移除附檔</string>
+    <string name="chat_attachment_too_large">檔案過大（單檔上限 8 MB）</string>
+    <string name="chat_attachment_read_failed">無法讀取檔案</string>
 </resources>
