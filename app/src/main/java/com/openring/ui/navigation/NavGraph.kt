@@ -27,6 +27,7 @@ import com.openring.ui.screens.TextSettingEditorScreen
 import com.openring.ui.screens.PermissionsScreen
 import com.openring.ui.screens.LanguageSettingsScreen
 import com.openring.ui.screens.CloudRelayScreen
+import com.openring.ui.screens.PromptNotesScreen
 import com.openring.ui.MainActivity
 import com.openring.settings.OpenRingCloudRelayPrefs
 
@@ -48,6 +49,7 @@ sealed class Screen(val route: String) {
     data object AiModelSettings : Screen("ai/model_settings")
     data object LanguageSettings : Screen("app/language_settings")
     data object CloudRelay : Screen("app/cloud_relay")
+    data object PromptNotes : Screen("prompt_notes")
 }
 
 @Composable
@@ -96,7 +98,8 @@ fun OpenRingNavHost(
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                 onNavigateToExecutionLog = { navController.navigate(Screen.ExecutionLog.route) },
                 onNavigateToPermissions = { navController.navigate(Screen.Permissions.route) },
-                onNavigateToCloudRelay = { navController.navigate(Screen.CloudRelay.route) }
+                onNavigateToCloudRelay = { navController.navigate(Screen.CloudRelay.route) },
+                onNavigateToPromptNotes = { navController.navigate(Screen.PromptNotes.route) }
             )
         }
         composable(Screen.ExecutionLog.route) {
@@ -109,7 +112,8 @@ fun OpenRingNavHost(
                 onEditMoralityPolicy = { navController.navigate(Screen.EditMoralityPolicy.route) },
                 onNavigateToSkills = { navController.navigate(Screen.Skills.route) },
                 onNavigateToAiModelSettings = { navController.navigate(Screen.AiModelSettings.route) },
-                onNavigateToAutoScan = { navController.navigate(Screen.AutoScan.route) }
+                onNavigateToAutoScan = { navController.navigate(Screen.AutoScan.route) },
+                onNavigateToPromptNotes = { navController.navigate(Screen.PromptNotes.route) }
             )
         }
         composable(Screen.AutoScan.route) {
@@ -135,6 +139,9 @@ fun OpenRingNavHost(
         }
         composable(Screen.CloudRelay.route) {
             CloudRelayScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Screen.PromptNotes.route) {
+            PromptNotesScreen(onBack = { navController.popBackStack() })
         }
         composable(Screen.AiModelSettings.route) {
             SettingsScreen(

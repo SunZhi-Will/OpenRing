@@ -11,7 +11,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
- * 長期記憶：工作階段摘要、結構化關鍵事實、向量片段（Gemini embedding + 本地餘弦檢索）。
+ * 長期記憶：工作階段摘要、結構化關鍵事實、向量片段（Gemini embedding + 本地餘弦檢索）、
+ * 以及使用者自訂的 Prompt／Skill 筆記索引（完整內容經 list_prompt_notes / get_prompt_note 讀取）。
  */
 class MemoryRepository(
     context: Context,
@@ -57,6 +58,7 @@ class MemoryRepository(
                 }
             }
         }
+        appendPromptNoteLibraryIndex(sb)
         return sb.toString().trim()
     }
 
@@ -84,7 +86,30 @@ class MemoryRepository(
             scopedFacts.forEach { sb.appendLine("- ${it.factKey}: ${it.factValue.take(380)}") }
             sb.appendLine()
         }
+        appendPromptNoteLibraryIndex(sb)
         return sb.toString().trim()
+    }
+
+    /**
+     * 與 memory_save_fact / memory_recall 並列：使用者儲存的指令庫索引，完整內容請用工具讀取。
+     */
+    private suspend fun appendPromptNoteLibraryIndex(sb: StringBuilder) {
+        val notes = db().promptNoteDao().listAllOrdered()
+        if (notes.isEmpty()) return
+        sb.appendLine("User prompt library (same memory system as facts/recall — full text via list_prompt_notes / get_prompt_note):")
+        val maxLines = 24
+        notes.take(maxLines).forEach { n ->
+            val kindLabel = when (n.kind) {
+                PromptNoteRepository.KIND_SKILL -> "skill"
+                else -> "prompt"
+            }
+            val title = n.title.ifBlank { n.id }.take(80)
+            sb.appendLine("- [$kindLabel] $title · id=${n.id}")
+        }
+        if (notes.size > maxLines) {
+            sb.appendLine("… and ${notes.size - maxLines} more (list_prompt_notes)")
+        }
+        sb.appendLine()
     }
 
     suspend fun saveFact(scope: String, sessionId: String, factKey: String, factValue: String): String {

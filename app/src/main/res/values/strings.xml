@@ -198,4 +198,26 @@
     <string name="cloud_relay_qr_applied">WebSocket URL updated from QR</string>
     <string name="notification_channel_cloud_relay_chat_name">OpenRing Cloud messages</string>
     <string name="notification_relay_message_title">OpenRing Cloud</string>
+    <string name="menu_prompt_notes">Memory library</string>
+    <string name="prompt_notes_title">Memory: prompt library</string>
+    <string name="ai_settings_prompt_notes_subtitle">User-defined prompts (same memory layer as facts &amp; vector recall)</string>
+    <string name="prompt_notes_add">Add note</string>
+    <string name="prompt_notes_empty_title">No notes yet</string>
+    <string name="prompt_notes_empty_subtitle">Tap + to add entries to your memory library: Prompt notes or Skill-style notes (name, description, prompt).</string>
+    <string name="prompt_notes_kind_prompt">Prompt</string>
+    <string name="prompt_notes_kind_skill">Skill note</string>
+    <string name="prompt_notes_dialog_create_title">New note</string>
+    <string name="prompt_notes_dialog_edit_title">Edit note</string>
+    <string name="prompt_notes_field_title_prompt">Title</string>
+    <string name="prompt_notes_field_name_skill">Name</string>
+    <string name="prompt_notes_field_description">Description (optional)</string>
+    <string name="prompt_notes_field_body_prompt">Prompt text</string>
+    <string name="prompt_notes_field_prompt_skill">Prompt</string>
+    <string name="prompt_notes_delete_title">Delete note</string>
+    <string name="prompt_notes_delete_confirm">Delete \"%1$s\"? This cannot be undone.</string>
+    <string name="chat_notes_picker_cd">Insert from memory library</string>
+    <string name="chat_notes_picker_title">Insert from memory library</string>
+    <string name="chat_notes_picker_empty">No entries yet. Open Memory library to add one.</string>
+    <string name="chat_notes_inserted_toast">Note inserted into input</string>
+    <string name="chat_notes_manage_open">Open memory library…</string>
 </resources>

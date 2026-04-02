@@ -57,7 +57,9 @@ object ToolSchemas {
             setSystemPrompt(),
             installOfficialSkill(),
             installSkill(),
-            createSkill()
+            createSkill(),
+            listPromptNotes(),
+            getPromptNote()
         )
 
         val dynamicTools = loadDynamicSkills(context)
@@ -639,6 +641,30 @@ object ToolSchemas {
                 }
             }
             putJsonArray("required") { add(JsonPrimitive("url")) }
+        }
+    )
+
+    private fun listPromptNotes() = FunctionDeclaration(
+        name = "list_prompt_notes",
+        description = "Lists entries in the user's prompt library (same OpenRing memory layer as memory_save_fact / memory_recall): saved prompt notes and skill-style notes (id, kind, title, short description). Call when the user refers to stored instructions or you need a named behavior; then call get_prompt_note with an id.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {}
+        }
+    )
+
+    private fun getPromptNote() = FunctionDeclaration(
+        name = "get_prompt_note",
+        description = "Loads full text of a prompt-library entry by id (from list_prompt_notes or the injected memory index). Same persistent layer as long-term memory. Follow formattedBlock for this task.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("note_id") {
+                    put("type", JsonPrimitive("string"))
+                    put("description", JsonPrimitive("id from list_prompt_notes"))
+                }
+            }
+            putJsonArray("required") { add(JsonPrimitive("note_id")) }
         }
     )
 

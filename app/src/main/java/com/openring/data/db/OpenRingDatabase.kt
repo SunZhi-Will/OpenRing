@@ -12,6 +12,7 @@ import com.openring.data.dao.ExecutionHistoryDao
 import com.openring.data.dao.ExecutionLogDao
 import com.openring.data.dao.MemoryFactDao
 import com.openring.data.dao.MemoryVectorDao
+import com.openring.data.dao.PromptNoteDao
 import com.openring.data.dao.ScriptDao
 import com.openring.data.model.ChatMessageEntity
 import com.openring.data.model.ChatSession
@@ -19,6 +20,7 @@ import com.openring.data.model.ExecutionLogEntryEntity
 import com.openring.data.model.ExecutionRecord
 import com.openring.data.model.MemoryFactEntity
 import com.openring.data.model.MemoryVectorChunkEntity
+import com.openring.data.model.PromptNoteEntity
 import com.openring.data.model.Script
 
 @Database(
@@ -29,9 +31,10 @@ import com.openring.data.model.Script
         ChatMessageEntity::class,
         ExecutionLogEntryEntity::class,
         MemoryFactEntity::class,
-        MemoryVectorChunkEntity::class
+        MemoryVectorChunkEntity::class,
+        PromptNoteEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class OpenRingDatabase : RoomDatabase() {
@@ -42,6 +45,7 @@ abstract class OpenRingDatabase : RoomDatabase() {
     abstract fun executionLogDao(): ExecutionLogDao
     abstract fun memoryFactDao(): MemoryFactDao
     abstract fun memoryVectorDao(): MemoryVectorDao
+    abstract fun promptNoteDao(): PromptNoteDao
 
     companion object {
         @Volatile
@@ -89,6 +93,28 @@ abstract class OpenRingDatabase : RoomDatabase() {
                 )
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_execution_log_entries_sessionId_createdAtMs` ON `execution_log_entries` (`sessionId`, `createdAtMs`)"
+                )
+            }
+        }
+
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `prompt_notes` (
+                        `id` TEXT NOT NULL,
+                        `kind` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `description` TEXT NOT NULL,
+                        `body` TEXT NOT NULL,
+                        `createdAtMs` INTEGER NOT NULL,
+                        `updatedAtMs` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_prompt_notes_updatedAtMs` ON `prompt_notes` (`updatedAtMs`)"
                 )
             }
         }
@@ -142,7 +168,7 @@ abstract class OpenRingDatabase : RoomDatabase() {
                     OpenRingDatabase::class.java,
                     "openring_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { INSTANCE = it }
             }

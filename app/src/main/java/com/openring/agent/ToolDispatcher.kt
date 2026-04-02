@@ -17,6 +17,7 @@ import com.openring.core.model.ActionResult
 import com.openring.core.model.ErrorCode
 import com.openring.core.model.ViewNode
 import com.openring.data.MemoryRepository
+import com.openring.data.PromptNoteRepository
 import com.openring.data.ScriptStore
 import com.openring.data.db.OpenRingDatabase
 import com.openring.data.model.Schedule
@@ -117,6 +118,57 @@ class ToolDispatcher(
         }
     }
 
+    private fun dispatchListPromptNotes(): ToolResult {
+        return runBlocking(Dispatchers.IO) {
+            val dao = OpenRingDatabase.getDatabase(context).promptNoteDao()
+            val rows = dao.listAllOrdered()
+            val data = buildJsonObject {
+                putJsonArray("notes") {
+                    for (n in rows) {
+                        add(buildJsonObject {
+                            put("id", n.id)
+                            put("kind", n.kind)
+                            put("title", n.title)
+                            val desc = n.description.trim()
+                            put(
+                                "description",
+                                if (desc.length > 200) desc.take(200) + "…" else desc
+                            )
+                        })
+                    }
+                }
+                put("count", rows.size)
+            }
+            ToolResult(true, data = data)
+        }
+    }
+
+    private fun dispatchGetPromptNote(args: JsonObject): ToolResult {
+        val id = args["note_id"]?.jsonPrimitive?.content?.trim().orEmpty()
+        if (id.isBlank()) {
+            return ToolResult(false, "INVALID_ARGUMENT", "Missing note_id")
+        }
+        return runBlocking(Dispatchers.IO) {
+            val dao = OpenRingDatabase.getDatabase(context).promptNoteDao()
+            val note = dao.getById(id)
+                ?: return@runBlocking ToolResult(false, "NOT_FOUND", "No prompt note with this id")
+            val formattedText = PromptNoteRepository.formatForTool(note)
+            val formattedBlock = PromptNoteRepository.formatForChat(note)
+            ToolResult(
+                true,
+                data = buildJsonObject {
+                    put("id", note.id)
+                    put("kind", note.kind)
+                    put("title", note.title)
+                    put("description", note.description)
+                    put("body", note.body)
+                    put("formattedText", formattedText)
+                    put("formattedBlock", formattedBlock)
+                }
+            )
+        }
+    }
+
     fun dispatch(name: String, args: JsonObject): ToolResult {
         when {
             name == "call_skill" -> {
@@ -146,6 +198,14 @@ class ToolDispatcher(
 
         if (name == "create_skill") {
             return dispatchCreateSkill(args)
+        }
+
+        if (name == "list_prompt_notes") {
+            return dispatchListPromptNotes()
+        }
+
+        if (name == "get_prompt_note") {
+            return dispatchGetPromptNote(args)
         }
 
         if (name == "http_request") {

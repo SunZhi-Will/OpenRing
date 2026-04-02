@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -117,10 +118,12 @@ import com.openring.core.OpenRingCloudRelayBridge
 import com.openring.core.OverlayService
 import com.openring.data.ChatRepository
 import com.openring.data.MemoryRepository
+import com.openring.data.PromptNoteRepository
 import com.openring.data.ScriptStore
 import com.openring.data.db.OpenRingDatabase
 import com.openring.data.model.ChatMessageEntity
 import com.openring.data.model.ChatSession
+import com.openring.data.model.PromptNoteEntity
 import com.openring.localmodel.LocalLlmChatPrompt
 import com.openring.localmodel.LocalModelCatalog
 import com.openring.localmodel.LocalLlmEngine
@@ -182,6 +185,7 @@ fun ChatScreen(
     onNavigateToExecutionLog: () -> Unit,
     onNavigateToPermissions: () -> Unit,
     onNavigateToCloudRelay: () -> Unit = {},
+    onNavigateToPromptNotes: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -189,6 +193,7 @@ fun ChatScreen(
     val coordinator = remember { ReActCoordinator(context) }
     val localReActCoordinator = remember { LocalReActCoordinator(context) }
     val chatRepository = remember { ChatRepository(context) }
+    val promptNoteRepository = remember { PromptNoteRepository(context) }
     val memoryRepository = remember { MemoryRepository(context) }
     val keyStore = remember { ApiKeyStore(context) }
     val modelStore = remember { ModelStore(context) }
@@ -226,10 +231,13 @@ fun ChatScreen(
     var activeChatSessionId by remember { mutableStateOf<String?>(null) }
     var input by remember { mutableStateOf("") }
     var sessionSheetOpen by remember { mutableStateOf(false) }
+    var notesPickerOpen by remember { mutableStateOf(false) }
+    var notesForPicker by remember { mutableStateOf<List<PromptNoteEntity>>(emptyList()) }
     var moreMenuExpanded by remember { mutableStateOf(false) }
     var sessionsForPicker by remember { mutableStateOf<List<ChatSession>>(emptyList()) }
     var sessionPendingDelete by remember { mutableStateOf<ChatSession?>(null) }
     val sessionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val notesSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var running by remember { mutableStateOf(false) }
     var runningSessionId by remember { mutableStateOf<String?>(null) }
     var overlayPermissionDialogText by remember { mutableStateOf<String?>(null) }
@@ -315,6 +323,14 @@ fun ChatScreen(
         if (sessionSheetOpen) {
             sessionsForPicker = withContext(Dispatchers.IO) {
                 chatRepository.listSessions(100)
+            }
+        }
+    }
+
+    LaunchedEffect(notesPickerOpen) {
+        if (notesPickerOpen) {
+            notesForPicker = withContext(Dispatchers.IO) {
+                promptNoteRepository.listAllOrdered()
             }
         }
     }
@@ -888,6 +904,16 @@ fun ChatScreen(
                             onDismissRequest = { moreMenuExpanded = false }
                         ) {
                             DropdownMenuItem(
+                                text = { Text(stringResource(R.string.menu_prompt_notes)) },
+                                onClick = {
+                                    moreMenuExpanded = false
+                                    onNavigateToPromptNotes()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Notes, contentDescription = null)
+                                }
+                            )
+                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.menu_workflows)) },
                                 onClick = {
                                     moreMenuExpanded = false
@@ -1099,6 +1125,21 @@ fun ChatScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
                         ) {
+                            IconButton(
+                                onClick = {
+                                    if (running) {
+                                        Toast.makeText(context, "執行中請稍候", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        notesPickerOpen = true
+                                    }
+                                },
+                                enabled = !running
+                            ) {
+                                Icon(
+                                    Icons.Default.Notes,
+                                    contentDescription = stringResource(R.string.chat_notes_picker_cd)
+                                )
+                            }
                             TextField(
                                 value = input,
                                 onValueChange = { input = it },
@@ -1342,6 +1383,83 @@ fun ChatScreen(
                         }
                     )
                     HorizontalDivider()
+                }
+            }
+        }
+    }
+
+    if (notesPickerOpen) {
+        ModalBottomSheet(
+            onDismissRequest = { notesPickerOpen = false },
+            sheetState = notesSheetState
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp)
+            ) {
+                Text(
+                    stringResource(R.string.chat_notes_picker_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)
+                )
+                if (notesForPicker.isEmpty()) {
+                    Text(
+                        stringResource(R.string.chat_notes_picker_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm)
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(notesForPicker, key = { it.id }) { note ->
+                            ListItem(
+                                headlineContent = {
+                                    Text(
+                                        note.title.ifBlank { note.id },
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
+                                supportingContent = {
+                                    Text(
+                                        if (note.kind == PromptNoteRepository.KIND_SKILL) {
+                                            stringResource(R.string.prompt_notes_kind_skill)
+                                        } else {
+                                            stringResource(R.string.prompt_notes_kind_prompt)
+                                        },
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                },
+                                modifier = Modifier.clickable {
+                                    val block = PromptNoteRepository.formatForChat(note)
+                                    input = if (input.isBlank()) {
+                                        block
+                                    } else {
+                                        input.trimEnd() + "\n\n" + block
+                                    }
+                                    notesPickerOpen = false
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.chat_notes_inserted_toast),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            )
+                            HorizontalDivider()
+                        }
+                    }
+                }
+                TextButton(
+                    onClick = {
+                        notesPickerOpen = false
+                        onNavigateToPromptNotes()
+                    },
+                    modifier = Modifier.padding(horizontal = Spacing.md)
+                ) {
+                    Text(stringResource(R.string.chat_notes_manage_open))
                 }
             }
         }

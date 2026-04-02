@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
@@ -50,6 +51,7 @@ fun AiSettingsScreen(
     onNavigateToSkills: () -> Unit,
     onNavigateToAiModelSettings: () -> Unit,
     onNavigateToAutoScan: () -> Unit = {},
+    onNavigateToPromptNotes: () -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val promptStore = remember { AiPromptStore(context) }
@@ -113,6 +115,15 @@ fun AiSettingsScreen(
                     title = stringResource(R.string.ai_model_settings_title),
                     subtitle = stringResource(R.string.ai_model_settings_subtitle),
                     onClick = onNavigateToAiModelSettings
+                )
+            }
+
+            item {
+                SettingsNavCard(
+                    icon = Icons.Default.Notes,
+                    title = stringResource(R.string.prompt_notes_title),
+                    subtitle = stringResource(R.string.ai_settings_prompt_notes_subtitle),
+                    onClick = onNavigateToPromptNotes
                 )
             }
 
