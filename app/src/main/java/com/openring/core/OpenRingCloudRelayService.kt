@@ -22,6 +22,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -50,6 +51,7 @@ class OpenRingCloudRelayService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var connectJob: Job? = null
     private var activeSocket: WebSocket? = null
+    private var outboundReplyJob: Job? = null
 
     private val httpClient = OkHttpClient.Builder()
         .pingInterval(30, TimeUnit.SECONDS)
@@ -138,6 +140,20 @@ class OpenRingCloudRelayService : Service() {
                         .put("role", "phone")
                         .put("deviceName", deviceName)
                     webSocket.send(hello.toString())
+                    outboundReplyJob?.cancel()
+                    outboundReplyJob = scope.launch {
+                        OpenRingCloudRelayBridge.outboundRelayReplies.collect { replyText ->
+                            try {
+                                val payload = JSONObject()
+                                    .put("action", "RELAY_CHAT_REPLY")
+                                    .put("deviceName", deviceName)
+                                    .put("text", replyText.take(12_000))
+                                webSocket.send(payload.toString())
+                            } catch (e: Exception) {
+                                Log.e(TAG, "RELAY_CHAT_REPLY send failed", e)
+                            }
+                        }
+                    }
                     OpenRingCloudRelayBridge.setConnected()
                     mainHandler.post {
                         notifyForeground(getString(R.string.notification_cloud_relay_text_connected))
@@ -158,6 +174,8 @@ class OpenRingCloudRelayService : Service() {
                 }
 
                 override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    outboundReplyJob?.cancel()
+                    outboundReplyJob = null
                     if (OpenRingCloudRelayBridge.phase.value != OpenRingCloudRelayBridge.Phase.Failed) {
                         OpenRingCloudRelayBridge.setDisconnected()
                     }
@@ -166,6 +184,8 @@ class OpenRingCloudRelayService : Service() {
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                     Log.e(TAG, "WebSocket failure", t)
+                    outboundReplyJob?.cancel()
+                    outboundReplyJob = null
                     OpenRingCloudRelayBridge.setFailed(t.message ?: "connect failed")
                     finishSession(sessionDone)
                 }
@@ -208,6 +228,7 @@ class OpenRingCloudRelayService : Service() {
                 "RELAY_MESSAGE" -> {
                     handleRelayMessage(json)
                 }
+                "RELAY_CHAT_REPLY" -> { /* 瀏覽器儀表板用；手機端忽略 */ }
                 else -> Log.w(TAG, "unknown action: $action")
             }
         } catch (e: Exception) {

@@ -28,6 +28,7 @@ import com.openring.ui.screens.PermissionsScreen
 import com.openring.ui.screens.LanguageSettingsScreen
 import com.openring.ui.screens.CloudRelayScreen
 import com.openring.ui.MainActivity
+import com.openring.settings.OpenRingCloudRelayPrefs
 
 sealed class Screen(val route: String) {
     data object Chat : Screen("chat")
@@ -69,6 +70,19 @@ fun OpenRingNavHost(
                 launchSingleTop = true
             }
             intent.removeExtra(MainActivity.EXTRA_OPEN_CHAT_FROM_RELAY)
+        }
+        val deepUri = intent.data
+        if (deepUri != null && deepUri.scheme == "openring" && deepUri.host == "relay") {
+            val url = deepUri.getQueryParameter("url")?.trim()
+            if (!url.isNullOrEmpty() &&
+                (url.startsWith("ws://", ignoreCase = true) || url.startsWith("wss://", ignoreCase = true))
+            ) {
+                OpenRingCloudRelayPrefs.setRelayUrl(context, url)
+                navController.navigate(Screen.CloudRelay.route) {
+                    launchSingleTop = true
+                }
+            }
+            intent.data = null
         }
     }
     NavHost(

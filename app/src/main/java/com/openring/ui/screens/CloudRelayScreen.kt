@@ -1,6 +1,11 @@
 package com.openring.ui.screens
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -42,11 +48,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.openring.R
 import com.openring.core.OpenRingCloudRelayBridge
 import com.openring.core.OpenRingCloudRelayService
 import com.openring.settings.OpenRingCloudRelayPrefs
+import com.openring.settings.RelayQrPayload
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,8 +67,53 @@ fun CloudRelayScreen(onBack: () -> Unit) {
     val phase by OpenRingCloudRelayBridge.phase.collectAsStateWithLifecycle()
     val lastError by OpenRingCloudRelayBridge.lastError.collectAsStateWithLifecycle()
 
+    LaunchedEffect(Unit) {
+        url = OpenRingCloudRelayPrefs.getRelayUrl(context)
+    }
+
     LaunchedEffect(phase) {
         prefsEnabled = OpenRingCloudRelayPrefs.isRelayEnabled(context)
+    }
+
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        val contents = result?.contents ?: return@rememberLauncherForActivityResult
+        val parsed = RelayQrPayload.parse(contents)
+        if (parsed == null) {
+            Toast.makeText(context, context.getString(R.string.cloud_relay_invalid_qr), Toast.LENGTH_SHORT).show()
+        } else {
+            url = parsed
+            OpenRingCloudRelayPrefs.setRelayUrl(context, parsed)
+            Toast.makeText(context, context.getString(R.string.cloud_relay_qr_applied), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val requestCameraPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            scanLauncher.launch(
+                ScanOptions().apply {
+                    setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                    setPrompt(context.getString(R.string.cloud_relay_scan_prompt))
+                    setBeepEnabled(false)
+                }
+            )
+        }
+    }
+
+    fun launchQrScanner() {
+        when (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)) {
+            PackageManager.PERMISSION_GRANTED -> {
+                scanLauncher.launch(
+                    ScanOptions().apply {
+                        setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                        setPrompt(context.getString(R.string.cloud_relay_scan_prompt))
+                        setBeepEnabled(false)
+                    }
+                )
+            }
+            else -> requestCameraPermission.launch(Manifest.permission.CAMERA)
+        }
     }
 
     val isConnected = phase == OpenRingCloudRelayBridge.Phase.Connected
@@ -183,6 +237,20 @@ fun CloudRelayScreen(onBack: () -> Unit) {
                 singleLine = true,
                 enabled = urlEditable
             )
+
+            OutlinedButton(
+                onClick = { launchQrScanner() },
+                enabled = urlEditable,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    Icons.Filled.QrCode2,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.cloud_relay_scan_qr))
+            }
 
             if (isConnected) {
                 OutlinedButton(

@@ -113,6 +113,7 @@ import com.openring.agent.ToolSchemas
 import com.openring.core.BackgroundWorkTracker
 import com.openring.core.ChatReloadBus
 import com.openring.core.CloudRelayTaskBus
+import com.openring.core.OpenRingCloudRelayBridge
 import com.openring.core.OverlayService
 import com.openring.data.ChatRepository
 import com.openring.data.MemoryRepository
@@ -427,7 +428,7 @@ fun ChatScreen(
         }
     }
 
-    fun startRun(text: String, tryStartOverlay: Boolean) {
+    fun startRun(text: String, tryStartOverlay: Boolean, fromRelay: Boolean = false) {
         val trimmed = text.trim()
         if (trimmed.isBlank()) return
         if (running) {
@@ -735,6 +736,9 @@ fun ChatScreen(
                         )
                     )
                 }
+                if (fromRelay) {
+                    OpenRingCloudRelayBridge.trySendRelayChatReply(resultText)
+                }
             } finally {
                 AiRunNotification.cancel(context)
                 if (Settings.canDrawOverlays(context)) {
@@ -762,7 +766,7 @@ fun ChatScreen(
             val t = text.trim()
             Log.d("CloudRelayTask", "ChatScreen received relay len=${t.length}")
             if (t.isNotEmpty()) {
-                startRun(t, tryStartOverlay = true)
+                startRun(t, tryStartOverlay = true, fromRelay = true)
             }
         }
     }

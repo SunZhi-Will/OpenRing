@@ -188,6 +188,10 @@
     <string name="cloud_relay_status_disconnected">已斷線（連線模式中會自動重試）</string>
     <string name="cloud_relay_status_failed">連線失敗</string>
     <string name="cloud_relay_url_hint">手機不能填 localhost，請填電腦區網 IP，例如 ws://192.168.0.12:8080</string>
+    <string name="cloud_relay_scan_qr">掃描 QR 綁定</string>
+    <string name="cloud_relay_scan_prompt">請對準控制台顯示的中繼 QR</string>
+    <string name="cloud_relay_invalid_qr">無法辨識此 QR（需為 ws:// 或 OpenRing 中繼連結）</string>
+    <string name="cloud_relay_qr_applied">已從 QR 更新 WebSocket 網址</string>
     <string name="notification_channel_cloud_relay_chat_name">OpenRing Cloud 訊息</string>
     <string name="notification_relay_message_title">OpenRing Cloud</string>
 </resources>

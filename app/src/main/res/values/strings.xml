@@ -188,6 +188,10 @@
     <string name="cloud_relay_status_disconnected">Disconnected (will retry while connected)</string>
     <string name="cloud_relay_status_failed">Connection failed</string>
     <string name="cloud_relay_url_hint">Phone cannot use localhost. Use your PC LAN IP, e.g. ws://192.168.0.12:8080</string>
+    <string name="cloud_relay_scan_qr">Scan QR code</string>
+    <string name="cloud_relay_scan_prompt">Align the relay QR code</string>
+    <string name="cloud_relay_invalid_qr">Unrecognized QR (need ws:// or OpenRing relay link)</string>
+    <string name="cloud_relay_qr_applied">WebSocket URL updated from QR</string>
     <string name="notification_channel_cloud_relay_chat_name">OpenRing Cloud messages</string>
     <string name="notification_relay_message_title">OpenRing Cloud</string>
 </resources>

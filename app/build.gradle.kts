@@ -96,6 +96,9 @@ dependencies {
     // Networking (Gemini Developer API via REST)
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
 
+    // QR scan for OpenRing Cloud relay URL (Fleet dashboard QR)
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
+
     // QuickJS (Skill Plugin Engine)
     // NOTE: `app.cash.quickjs:quickjs-android` 內的 `libquickjs.so` 仍為 4KB LOAD 對齊，
     // 會在 Android 15+ 的 16KB page size 裝置觸發相容模式警告。
