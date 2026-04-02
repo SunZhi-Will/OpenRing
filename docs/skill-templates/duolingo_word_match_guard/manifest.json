@@ -1,6 +1,6 @@
 {
   "name": "duolingo_word_match_guard",
-  "description": "Deterministically resolve a Duolingo word-match target and block ambiguous picks.",
+  "description": "Deterministic Duolingo word-match; use describe_ambient_audio first for listen/sound exercises (see SKILL.md).",
   "inputSchema": {
     "type": "object",
     "properties": {

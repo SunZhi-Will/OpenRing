@@ -99,11 +99,17 @@ class ReActCoordinator(
                     append(
                         "For Duolingo word-match tasks, prioritize skill_duolingo_word_match_guard (or call_skill with duolingo_word_match_guard) for deterministic target selection before any click."
                     )
+                    append(
+                        " For any exercise that depends on in-app audio (listen, sound-match, type-what-you-hear), call **describe_ambient_audio** while the clip plays or after tapping replay; enable **phone playback audio** (MediaProjection, same as screen recording) in OpenRing Permissions so capture uses internal app audio, not only the mic; still allow RECORD_AUDIO."
+                    )
                     if (isDuolingoAudioHeavyRequest(userText)) {
                         append(
-                            " For listen/sound-match exercises, call describe_ambient_audio: enable **phone playback audio** (MediaProjection, same as screen recording) in OpenRing Permissions so capture uses internal app audio, not only the mic; still allow RECORD_AUDIO."
+                            " User emphasized audio/listening—never skip describe_ambient_audio before guessing targets."
                         )
                     }
+                    append(
+                        " Keep using tools (get_view_tree / summarize_view_tree / clicks) until the lesson screen changes or the user stops; do not stop with a short reply while Duolingo is still on an active exercise."
+                    )
                 }
                 add(
                     Content(

@@ -1,37 +1,14 @@
 ---
 name: duolingo_word_match_guard
-description: Resolve a Duolingo word-match target deterministically and refuse ambiguous picks.
+description: Deterministic Duolingo word-match; pair with describe_ambient_audio for listen/sound exercises.
 ---
 
 # duolingo_word_match_guard
 
-Use this skill when:
-- The user asks to solve Duolingo "match the pairs" / word-match exercises.
-- The UI shows multiple similar labels and blind clicking is risky.
-- You need deterministic matching before calling click tools.
+**Listen / sound / type-what-you-hear (do this first when audio matters):** Call host **`describe_ambient_audio`** while the clip plays or after **replay**. Enable **phone playback audio** (MediaProjection) + **RECORD_AUDIO** in OpenRing Permissions (internal mix, not just mic). From the transcript, build **`target`**, then **`choices`** from `get_view_tree` / `summarize_view_tree`, then use this skill or `duolingo_match_pick`. Do **not** guess listen answers from the accessibility tree if the spoken word is not shown as text.
 
-For **listen / sound-match** exercises (audio prompts), pair with the host tool **`describe_ambient_audio`**: prefer **device playback audio** capture (MediaProjection, enabled under OpenRing **Permission settings**) so the model hears in-app audio; fall back to microphone if needed.
+**Word-match / pair grids:** Prefer `skill_duolingo_word_match_guard` or `call_skill` with `duolingo_word_match_guard` before clicks. **Input:** `target`, `choices[]`, optional `allowContainsFallback`. If `status != ok`, refresh UI—do not click blindly.
 
-Call pattern:
-- Prefer dynamic tool: `skill_duolingo_word_match_guard`
-- Or explicit call: `call_skill` with `skill: "duolingo_word_match_guard"`
+**Keep going:** After each action, refresh the view and continue with tools until the exercise advances or the user stops; avoid ending with a short reply while Duolingo still shows an active lesson.
 
-Input:
-- `target`: string, the token you intend to click.
-- `choices`: string[], clickable labels currently visible on screen.
-- `allowContainsFallback` (optional): boolean, default false.
-
-Output:
-- `status`: `"ok" | "ambiguous" | "not_found" | "invalid_argument"`
-- `selected`: chosen label when status is `ok`.
-- `confidence`: number in [0,1].
-- `reason`: deterministic explanation.
-- `matchedIndices`: index list from `choices`.
-
-Execution policy:
-- If `status != "ok"`, do not click. Refresh UI (`get_view_tree` / `summarize_view_tree`) and retry with better target text.
-- Prefer exact normalized matches; only enable contains fallback when explicitly requested.
-
-Do not use when:
-- The task is free-form conversation generation.
-- The UI is not a discrete option list where `choices` can be enumerated.
+**Not for:** tasks with no enumerable `choices`, or unrelated chat.

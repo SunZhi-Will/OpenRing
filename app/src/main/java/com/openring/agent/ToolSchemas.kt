@@ -221,7 +221,7 @@ object ToolSchemas {
 
     private fun duolingoMatchPick() = FunctionDeclaration(
         name = "duolingo_match_pick",
-        description = "For Duolingo word-match screens: collect visible clickable labels, resolve target deterministically via duolingo_word_match_guard, then click the selected label. Prefer this over raw find_and_click for word-match tasks.",
+        description = "For Duolingo word-match screens: collect visible clickable labels, resolve target deterministically via duolingo_word_match_guard, then click the selected label. Prefer this over raw find_and_click for word-match tasks. For listen/sound exercises, call describe_ambient_audio first (device playback capture in Permissions) to obtain the spoken target before choosing target text.",
         parameters = buildJsonObject {
             put("type", JsonPrimitive("object"))
             putJsonObject("properties") {
