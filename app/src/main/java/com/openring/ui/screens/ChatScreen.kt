@@ -121,7 +121,9 @@ import com.openring.data.ScriptStore
 import com.openring.data.db.OpenRingDatabase
 import com.openring.data.model.ChatMessageEntity
 import com.openring.data.model.ChatSession
+import com.openring.localmodel.LocalLlmChatPrompt
 import com.openring.localmodel.LocalModelCatalog
+import com.openring.localmodel.LocalLlmEngine
 import com.openring.localmodel.LocalModelSupport
 import com.openring.settings.AiPromptStore
 import com.openring.security.ApiKeyStore
@@ -616,65 +618,90 @@ fun ChatScreen(
                                         Log.w("OpenRing", "Local memory injection failed", e)
                                         ""
                                     }
-                                    val toolCatalog = ToolSchemas.buildLocalToolCatalogText(context)
-                                    val r = localReActCoordinator.run(
-                                        catalogId = opt.model,
-                                        userText = trimmed,
-                                        priorContents = priorContents,
-                                        systemPrompt = aiPromptStore.getSystemPrompt(),
-                                        memoryInjection = memInject,
-                                        toolCatalogText = toolCatalog,
-                                        shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
-                                        onTurn = { turn ->
-                                            runScope.launch(Dispatchers.Main) {
-                                                recordTurnToLog(turn)
-                                            }
-                                            runScope.launch(Dispatchers.IO) {
-                                                val toolName = turn.toolName ?: return@launch
-                                                when (turn.role) {
-                                                    "tool_call" -> {
-                                                        val args = turn.toolResult ?: buildJsonObject { }
-                                                        chatRepository.appendExecutionLog(
-                                                            chatSid,
-                                                            ChatLogEntry.ToolCall(
-                                                                toolName = toolName,
-                                                                args = args,
-                                                                createdAtMs = nowMs()
+                                    val useLocalToolAgent = false
+                                    if (useLocalToolAgent) {
+                                        val toolCatalog = ToolSchemas.buildLocalToolCatalogText(context)
+                                        val r = localReActCoordinator.run(
+                                            catalogId = opt.model,
+                                            userText = trimmed,
+                                            priorContents = priorContents,
+                                            systemPrompt = aiPromptStore.getSystemPrompt(),
+                                            memoryInjection = memInject,
+                                            toolCatalogText = toolCatalog,
+                                            shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
+                                            onTurn = { turn ->
+                                                runScope.launch(Dispatchers.Main) {
+                                                    recordTurnToLog(turn)
+                                                }
+                                                runScope.launch(Dispatchers.IO) {
+                                                    val toolName = turn.toolName ?: return@launch
+                                                    when (turn.role) {
+                                                        "tool_call" -> {
+                                                            val args = turn.toolResult ?: buildJsonObject { }
+                                                            chatRepository.appendExecutionLog(
+                                                                chatSid,
+                                                                ChatLogEntry.ToolCall(
+                                                                    toolName = toolName,
+                                                                    args = args,
+                                                                    createdAtMs = nowMs()
+                                                                )
                                                             )
-                                                        )
-                                                    }
+                                                        }
 
-                                                    "tool_result" -> {
-                                                        val resultObj = turn.toolResult ?: buildJsonObject { }
-                                                        chatRepository.appendExecutionLog(
-                                                            chatSid,
-                                                            ChatLogEntry.ToolResult(
-                                                                toolName = toolName,
-                                                                result = sanitizeJsonForLog(toolName, resultObj),
-                                                                createdAtMs = nowMs()
+                                                        "tool_result" -> {
+                                                            val resultObj = turn.toolResult ?: buildJsonObject { }
+                                                            chatRepository.appendExecutionLog(
+                                                                chatSid,
+                                                                ChatLogEntry.ToolResult(
+                                                                    toolName = toolName,
+                                                                    result = sanitizeJsonForLog(toolName, resultObj),
+                                                                    createdAtMs = nowMs()
+                                                                )
                                                             )
-                                                        )
+                                                        }
                                                     }
                                                 }
-                                            }
-                                        },
-                                        onStatus = { msg ->
-                                            runScope.launch(Dispatchers.Main) {
-                                                updateProcessingText(msg)
-                                                val idx = messages.indexOfFirst { it.id == placeholderId }
-                                                if (idx >= 0) {
-                                                    messages[idx] = messages[idx].copy(text = msg)
+                                            },
+                                            onStatus = { msg ->
+                                                runScope.launch(Dispatchers.Main) {
+                                                    updateProcessingText(msg)
+                                                    val idx = messages.indexOfFirst { it.id == placeholderId }
+                                                    if (idx >= 0) {
+                                                        messages[idx] = messages[idx].copy(text = msg)
+                                                    }
                                                 }
+                                            },
+                                        )
+                                        withContext(Dispatchers.Main) {
+                                            val idx = messages.indexOfFirst { it.id == placeholderId }
+                                            if (idx >= 0) {
+                                                messages[idx] = messages[idx].copy(text = r.finalText)
                                             }
-                                        },
-                                    )
-                                    withContext(Dispatchers.Main) {
-                                        val idx = messages.indexOfFirst { it.id == placeholderId }
-                                        if (idx >= 0) {
-                                            messages[idx] = messages[idx].copy(text = r.finalText)
                                         }
+                                        return@withContext r.finalText
+                                    } else {
+                                        val style = LocalLlmChatPrompt.styleForCatalogId(opt.model)
+                                        val localPrompt = LocalLlmChatPrompt.buildPrompt(
+                                            style = style,
+                                            systemPrompt = aiPromptStore.getSystemPrompt(),
+                                            memoryInjection = memInject,
+                                            priorContents = priorContents,
+                                            currentUserMessage = trimmed,
+                                        )
+                                        val text = LocalLlmEngine.generate(
+                                            context = context,
+                                            catalogId = opt.model,
+                                            prompt = localPrompt,
+                                            isCancelled = { RunCancellationRegistry.isCancelled(runSessionId) },
+                                        ).trim().ifBlank { "（本機模型未產生內容）" }
+                                        withContext(Dispatchers.Main) {
+                                            val idx = messages.indexOfFirst { it.id == placeholderId }
+                                            if (idx >= 0) {
+                                                messages[idx] = messages[idx].copy(text = text)
+                                            }
+                                        }
+                                        return@withContext text
                                     }
-                                    return@withContext r.finalText
                                 } catch (e: Exception) {
                                     Log.e(
                                         "OpenRing",

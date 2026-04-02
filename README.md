@@ -5,7 +5,7 @@
   
   <br/><br/>
   
-  [![Join OpenRing Cloud Private Beta (Waitlist)](https://img.shields.io/badge/%F0%9F%9A%80%20Join%20OpenRing%20Cloud%20Private%20Beta%20(Waitlist)-FF6B00?style=for-the-badge)](https://tally.so/r/your-openring-waitlist-id)
+  [![Join OpenRing Cloud Private Beta (Waitlist)](https://img.shields.io/badge/%F0%9F%9A%80%20Join%20OpenRing%20Cloud%20Private%20Beta%20(Waitlist)-FF6B00?style=for-the-badge)](https://openring.vercel.app/en/cloud)
   
   <br/><br/>
   
@@ -171,17 +171,17 @@ When creating a **New release**, upload installable/distributable files directly
 - **Contributors**: [CONTRIBUTING.md](CONTRIBUTING.md), [CI_CD.md](docs/technical/CI_CD.md), [CHANGELOG.md](CHANGELOG.md)
 - **Developers**: [AI_AGENT.md](docs/technical/AI_AGENT.md), [SKILLS.md](docs/technical/SKILLS.md), [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md), [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md)
 
-| Document                                                | Description                                                                            |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md)         | Project overview, architecture design, milestones, and potential risks                 |
-| [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md)   | Product feature backlog, user stories, and priority evaluation                         |
-| [PRD.md](docs/product/PRD.md)                           | Product requirements: Chat-Driven OS, Gemini, skills, accessibility                    |
+| Document                                                | Description                                                                                                                      |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| [PROJECT_PLAN.md](docs/product/PROJECT_PLAN.md)         | Project overview, architecture design, milestones, and potential risks                                                           |
+| [PRODUCT_BACKLOG.md](docs/product/PRODUCT_BACKLOG.md)   | Product feature backlog, user stories, and priority evaluation                                                                   |
+| [PRD.md](docs/product/PRD.md)                           | Product requirements: Chat-Driven OS, Gemini, skills, accessibility                                                              |
 | [AI_AGENT.md](docs/technical/AI_AGENT.md)               | **Agent stack**: ReAct, tools (`summarize_view_tree`, vision, `describe_ambient_audio`, …), permissions UI, local GGUF, file map |
-| [SKILLS.md](docs/technical/SKILLS.md)                   | Tools vs Skills, QuickJS, morality guardrails                                          |
-| [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md)     | JSON format definition and action list supported by the script engine                  |
-| [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | Team assignments and system Prompt references for AI development                       |
-| [CI_CD.md](docs/technical/CI_CD.md)                     | GitHub Actions (debug APK artifacts, CodeQL, Dependabot, Dependency Review)            |
-| [CONTRIBUTING.md](CONTRIBUTING.md)                      | Complete open-source contribution guide and PR submission process                      |
+| [SKILLS.md](docs/technical/SKILLS.md)                   | Tools vs Skills, QuickJS, morality guardrails                                                                                    |
+| [SCRIPT_FORMAT.md](docs/technical/SCRIPT_FORMAT.md)     | JSON format definition and action list supported by the script engine                                                            |
+| [TEAM_ASSIGNMENT.md](docs/technical/TEAM_ASSIGNMENT.md) | Team assignments and system Prompt references for AI development                                                                 |
+| [CI_CD.md](docs/technical/CI_CD.md)                     | GitHub Actions (debug APK artifacts, CodeQL, Dependabot, Dependency Review)                                                      |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                      | Complete open-source contribution guide and PR submission process                                                                |
 
 ---
 
@@ -198,13 +198,13 @@ On **Android 13+**, grant **notification permission** or you will not see status
 
 Open **Settings** (from Chat) → **Permission settings** to manage:
 
-| Area | Purpose |
-|------|---------|
-| **Notifications** | Status / scheduler / AI run alerts (Android 13+ runtime grant; older OS links to system notification settings). |
-| **Microphone** | `RECORD_AUDIO` — required for agent audio tools (including internal playback capture APIs). |
-| **Device playback audio** | Android 10+: user-granted **MediaProjection** (same consent pattern as screen recording) + foreground service — used so `describe_ambient_audio` can capture **other apps’ speaker mix**, not only the mic. |
-| **Display over other apps** | Floating stop control during runs. |
-| **Accessibility** | Core automation (OpenRing accessibility service). |
+| Area                        | Purpose                                                                                                                                                                                                     |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Notifications**           | Status / scheduler / AI run alerts (Android 13+ runtime grant; older OS links to system notification settings).                                                                                             |
+| **Microphone**              | `RECORD_AUDIO` — required for agent audio tools (including internal playback capture APIs).                                                                                                                 |
+| **Device playback audio**   | Android 10+: user-granted **MediaProjection** (same consent pattern as screen recording) + foreground service — used so `describe_ambient_audio` can capture **other apps’ speaker mix**, not only the mic. |
+| **Display over other apps** | Floating stop control during runs.                                                                                                                                                                          |
+| **Accessibility**           | Core automation (OpenRing accessibility service).                                                                                                                                                           |
 
 The same screen is available from the Chat menu as **Permissions & accessibility**.
 
