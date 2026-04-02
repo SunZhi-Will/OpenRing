@@ -52,6 +52,9 @@ class OpenRingCloudRelayService : Service() {
         private const val NOTIFICATION_ID = 1008
         private const val RELAY_LOG_MAX_MESSAGE = 2000
         private const val HISTORY_SNAPSHOT_LIMIT = 80
+
+        /** 通知列「斷線」按鈕：停止中繼並關閉前景服務。 */
+        const val ACTION_DISCONNECT = "com.openring.cloud_relay.DISCONNECT"
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -81,6 +84,10 @@ class OpenRingCloudRelayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_DISCONNECT) {
+            disconnectAndStop()
+            return START_NOT_STICKY
+        }
         startForeground(
             NOTIFICATION_ID,
             buildNotification(getString(R.string.notification_cloud_relay_text_connecting))
@@ -125,16 +132,56 @@ class OpenRingCloudRelayService : Service() {
         val pending = PendingIntent.getActivity(
             this,
             0,
-            Intent(this, MainActivity::class.java),
+            Intent(this, MainActivity::class.java).apply {
+                setPackage(packageName)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val disconnectPending = PendingIntent.getService(
+            this,
+            10083,
+            Intent(this, OpenRingCloudRelayService::class.java).apply {
+                setPackage(packageName)
+                action = ACTION_DISCONNECT
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_cloud_relay_title))
             .setContentText(contentText)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pending)
             .setOngoing(true)
-            .build()
+            .setOnlyAlertOnce(true)
+            .addAction(
+                R.drawable.ic_stat_stop,
+                getString(R.string.cloud_relay_button_disconnect),
+                disconnectPending
+            )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            builder.setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+        }
+        return builder.build()
+    }
+
+    /** 與 [CloudRelayScreen] 的 stopRelay 一致：關閉中繼偏好、釋放連線並回到 Idle。 */
+    private fun disconnectAndStop() {
+        OpenRingCloudRelayPrefs.setRelayEnabled(applicationContext, false)
+        connectJob?.cancel()
+        connectJob = null
+        outboundReplyJob?.cancel()
+        outboundReplyJob = null
+        activeSocket?.cancel()
+        activeSocket = null
+        relayWsRef.set(null)
+        relayDeviceNameRef.set("")
+        OpenRingCloudRelayBridge.setIdle()
+        try {
+            stopForeground(Service.STOP_FOREGROUND_REMOVE)
+        } catch (_: Exception) {
+        }
+        stopSelf()
     }
 
     private fun notifyForeground(contentText: String) {
