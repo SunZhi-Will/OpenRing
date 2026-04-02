@@ -2,6 +2,7 @@ package com.openring.skills
 
 import android.util.Log
 import com.whl.quickjs.android.QuickJSLoader
+import com.whl.quickjs.wrapper.JSCallFunction
 import com.whl.quickjs.wrapper.QuickJSContext
 import com.whl.quickjs.wrapper.QuickJSException
 import kotlinx.serialization.encodeToString
@@ -13,7 +14,8 @@ import kotlinx.serialization.json.jsonObject
 /**
  * 在裝置上以 QuickJS 執行 Skill 的 `script.js`（需定義同步 `run(input)`）。
  *
- * 沙盒為純 JS：無 DOM、無 Node、`manifest.json` 的 `permissions` 目前**不**授予網路或儲存等 host API。
+ * 沙盒為純 JS：無 DOM、無 Node。若 manifest 宣告網路權限且提供 [networkHosts]，
+ * 會注入同步函式 `__openring_fetch(jsonString)`（僅 HTTPS、主機須符合清單），見 [SkillHttpFetch]。
  */
 object SkillQuickJsExecutor {
 
@@ -33,7 +35,12 @@ object SkillQuickJsExecutor {
         }
     }
 
-    fun execute(scriptSource: String, input: JsonObject): Result<JsonObject> {
+    fun execute(
+        scriptSource: String,
+        input: JsonObject,
+        /** 非空時註冊 `__openring_fetch`（僅允許連線至此清單內主機）。 */
+        networkHosts: List<String> = emptyList(),
+    ): Result<JsonObject> {
         ensureLoaderInitialized()
         val inputStr = json.encodeToString(JsonObject.serializer(), input)
         val ctx = QuickJSContext.create()
@@ -42,6 +49,18 @@ object SkillQuickJsExecutor {
             val global = ctx.globalObject
             val parsed = ctx.parseJSON(inputStr)
             ctx.setProperty(global, "__openring_input", parsed)
+            if (networkHosts.isNotEmpty()) {
+                val hosts = networkHosts
+                ctx.setProperty(
+                    global,
+                    "__openring_fetch",
+                    JSCallFunction { args ->
+                        val req = args.getOrNull(0)?.toString()
+                            ?: """{"ok":false,"error":"missing request json"}"""
+                        SkillHttpFetch.execute(req, hosts)
+                    }
+                )
+            }
             val normalized = stripExportKeywords(scriptSource)
             val bundle = """
                 $normalized

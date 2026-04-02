@@ -22,11 +22,14 @@ import com.openring.data.db.OpenRingDatabase
 import com.openring.data.model.Schedule
 import com.openring.domain.Scheduler
 import com.openring.settings.AiPromptStore
+import com.openring.settings.HttpRequestHostsStore
 import com.openring.settings.ScanCache
 import com.openring.skills.InstalledSkillStore
 import com.openring.skills.SkillAllowedSourcesStore
 import com.openring.skills.SkillEnabledStore
 import com.openring.skills.SkillInstall
+import com.openring.skills.SkillHttpFetch
+import com.openring.skills.SkillNetworkConfig
 import com.openring.skills.SkillQuickJsExecutor
 import com.openring.skills.SkillTemplateCatalog
 import java.io.File
@@ -34,6 +37,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -43,6 +47,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.booleanOrNull
 
 class ToolDispatcher(
     private val context: Context,
@@ -73,6 +78,45 @@ class ToolDispatcher(
         }
     }
 
+    private fun dispatchCreateSkill(args: JsonObject): ToolResult {
+        val promptStore = AiPromptStore(context)
+        if (!promptStore.getAllowAiToCreateSkill()) {
+            return ToolResult(
+                false,
+                "NOT_ALLOWED",
+                "User has not allowed AI to create skills. Enable it in Settings → Skills."
+            )
+        }
+        val manifest = args["manifest"]?.jsonPrimitive?.content
+            ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing manifest")
+        val script = args["script"]?.jsonPrimitive?.content
+            ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing script")
+        val overwrite = args["overwrite"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false
+        val skillMdArg = args["skill_md"]
+        val (skillMdSpecified, skillMdContent) = when (skillMdArg) {
+            null -> false to null
+            is JsonNull -> false to null
+            is JsonPrimitive -> true to skillMdArg.content
+            else -> return ToolResult(false, "INVALID_ARGUMENT", "skill_md must be a string when provided")
+        }
+        return when (
+            val r = SkillInstall.installFromInlineContent(
+                context = context,
+                manifestJson = manifest,
+                scriptJs = script,
+                overwrite = overwrite,
+                skillMdSpecified = skillMdSpecified,
+                skillMdContent = skillMdContent
+            )
+        ) {
+            is SkillInstall.Result.Ok -> ToolResult(true, data = buildJsonObject {
+                put("skillId", r.skillId)
+                put("message", "Skill installed successfully.")
+            })
+            is SkillInstall.Result.Err -> ToolResult(false, r.code, r.message)
+        }
+    }
+
     fun dispatch(name: String, args: JsonObject): ToolResult {
         when {
             name == "call_skill" -> {
@@ -98,6 +142,14 @@ class ToolDispatcher(
 
         if (name == "describe_ambient_audio") {
             return dispatchDescribeAmbientAudio(args)
+        }
+
+        if (name == "create_skill") {
+            return dispatchCreateSkill(args)
+        }
+
+        if (name == "http_request") {
+            return dispatchHttpRequest(args)
         }
 
         val service = OpenRingAccessibilityService.getInstance()
@@ -806,6 +858,44 @@ class ToolDispatcher(
         }
     }
 
+    private fun dispatchHttpRequest(args: JsonObject): ToolResult {
+        val url = args["url"]?.jsonPrimitive?.content?.trim()
+            ?: return ToolResult(false, "INVALID_ARGUMENT", "Missing url")
+        val method = args["method"]?.jsonPrimitive?.content?.trim()?.uppercase() ?: "GET"
+        val headersEl = args["headers"]
+        val headers = when (headersEl) {
+            null -> buildJsonObject { }
+            is JsonObject -> headersEl
+            else -> return ToolResult(false, "INVALID_ARGUMENT", "headers must be a JSON object")
+        }
+        val body = args["body"]?.jsonPrimitive?.content
+        val requestJson = buildJsonObject {
+            put("url", url)
+            put("method", method)
+            put("headers", headers)
+            if (body != null) put("body", JsonPrimitive(body)) else put("body", JsonNull)
+        }
+        val requestStr = json.encodeToString(JsonObject.serializer(), requestJson)
+        val hosts = HttpRequestHostsStore(context).getAllowedHosts()
+        if (hosts.isEmpty()) {
+            return ToolResult(
+                false,
+                "HTTP_HOSTS_NOT_CONFIGURED",
+                "No HTTP hosts allowed. Add hostnames in OpenRing → Skills → HTTP request allowlist."
+            )
+        }
+        val raw = SkillHttpFetch.execute(requestStr, hosts)
+        val parsed = json.parseToJsonElement(raw).jsonObject
+        val okEl = parsed["ok"]
+        val ok = okEl is JsonPrimitive &&
+            (okEl.booleanOrNull == true || okEl.content.equals("true", ignoreCase = true))
+        if (!ok) {
+            val err = parsed["error"]?.jsonPrimitive?.content ?: raw.take(500)
+            return ToolResult(false, "HTTP_REQUEST_FAILED", err)
+        }
+        return ToolResult(true, data = parsed)
+    }
+
     private fun executeSkill(skillId: String, input: JsonObject): ToolResult {
         val trimmed = skillId.trim()
         if (trimmed.isBlank()) {
@@ -832,7 +922,15 @@ class ToolDispatcher(
         } catch (e: Exception) {
             return ToolResult(false, "READ_FAILED", e.message ?: "Cannot read script.js")
         }
-        return SkillQuickJsExecutor.execute(scriptText, input).fold(
+        val manifestJson = try {
+            val mf = File(dir, "manifest.json")
+            if (mf.isFile) mf.readText(Charsets.UTF_8) else "{}"
+        } catch (e: Exception) {
+            return ToolResult(false, "READ_FAILED", e.message ?: "Cannot read manifest.json")
+        }
+        val netCfg = SkillNetworkConfig.parse(manifestJson)
+        val networkHosts = if (netCfg.networkEnabled) netCfg.allowedHosts else emptyList()
+        return SkillQuickJsExecutor.execute(scriptText, input, networkHosts).fold(
             onSuccess = { data ->
                 ToolResult(
                     true,

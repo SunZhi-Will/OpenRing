@@ -53,9 +53,11 @@ object ToolSchemas {
             memorySaveChunk(),
             memoryRecall(),
             callSkill(),
+            httpRequest(),
             setSystemPrompt(),
             installOfficialSkill(),
-            installSkill()
+            installSkill(),
+            createSkill()
         )
 
         val dynamicTools = loadDynamicSkills(context)
@@ -351,6 +353,36 @@ object ToolSchemas {
         }
     )
 
+    private fun httpRequest() = FunctionDeclaration(
+        name = "http_request",
+        description = "Perform an HTTPS request from the device (OkHttp). Only hosts the user added to the HTTP allowlist in OpenRing → Skills are permitted. Use for REST APIs, webhooks, or fetching JSON/text when no Skill covers the case. Prefer call_skill when a packaged Skill exists. Methods: GET, HEAD, POST, PUT, PATCH, DELETE. Response body may be truncated at ~512 KiB.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("url") {
+                    put("type", JsonPrimitive("string"))
+                    put("description", JsonPrimitive("Full https URL."))
+                }
+                putJsonObject("method") {
+                    put("type", JsonPrimitive("string"))
+                    put(
+                        "description",
+                        JsonPrimitive("Optional. Default GET. Allowed: GET, HEAD, POST, PUT, PATCH, DELETE.")
+                    )
+                }
+                putJsonObject("headers") {
+                    put("type", JsonPrimitive("object"))
+                    put("description", JsonPrimitive("Optional header name → string value map."))
+                }
+                putJsonObject("body") {
+                    put("type", JsonPrimitive("string"))
+                    put("description", JsonPrimitive("Optional raw body for non-GET (e.g. JSON string)."))
+                }
+            }
+            putJsonArray("required") { add(JsonPrimitive("url")) }
+        }
+    )
+
     private fun listScheduledScripts() = FunctionDeclaration(
         name = "list_scheduled_scripts",
         description = "List all locally saved scheduled scripts (id, name, schedule, prompt preview). Call this first when planning recurring tasks: check for duplicates, pick scriptId for update_script_schedule or delete_scheduled_script, or confirm names before create_scheduled_script.",
@@ -551,6 +583,48 @@ object ToolSchemas {
                 putJsonObject("prompt") { put("type", JsonPrimitive("string")) }
             }
             putJsonArray("required") { add(JsonPrimitive("prompt")) }
+        }
+    )
+
+    private fun createSkill() = FunctionDeclaration(
+        name = "create_skill",
+        description = "Create and install a full Skill from inline manifest.json and script.js (QuickJS). Requires user opt-in (Settings → Skills). On conflict, set overwrite=true to replace. Optional skill_md: omit to keep existing SKILL.md when overwriting; empty string removes SKILL.md.",
+        parameters = buildJsonObject {
+            put("type", JsonPrimitive("object"))
+            putJsonObject("properties") {
+                putJsonObject("manifest") {
+                    put("type", JsonPrimitive("string"))
+                    put(
+                        "description",
+                        JsonPrimitive("Full JSON for manifest.json (must include name; optional description, inputSchema).")
+                    )
+                }
+                putJsonObject("script") {
+                    put("type", JsonPrimitive("string"))
+                    put(
+                        "description",
+                        JsonPrimitive("QuickJS script defining run(input); must return a JSON object.")
+                    )
+                }
+                putJsonObject("overwrite") {
+                    put("type", JsonPrimitive("boolean"))
+                    put(
+                        "description",
+                        JsonPrimitive("If true, replace an existing skill with the same canonical id. Default false.")
+                    )
+                }
+                putJsonObject("skill_md") {
+                    put("type", JsonPrimitive("string"))
+                    put(
+                        "description",
+                        JsonPrimitive("Optional SKILL.md body for model guidance. Omit to leave SKILL.md unchanged on overwrite; empty string deletes SKILL.md.")
+                    )
+                }
+            }
+            putJsonArray("required") {
+                add(JsonPrimitive("manifest"))
+                add(JsonPrimitive("script"))
+            }
         }
     )
 

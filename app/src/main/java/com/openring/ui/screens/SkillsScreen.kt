@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -43,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.openring.skills.InstalledSkillStore
@@ -50,6 +52,9 @@ import com.openring.skills.SkillAllowedSourcesStore
 import com.openring.skills.SkillEnabledStore
 import com.openring.skills.SkillInstall
 import com.openring.skills.SkillTemplateCatalog
+import com.openring.settings.HttpRequestHostsStore
+import com.openring.R
+import com.openring.settings.AiPromptStore
 import com.openring.ui.theme.Spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -68,8 +73,15 @@ fun SkillsScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     var newUrl by remember { mutableStateOf("") }
 
+    val httpHostsStore = remember { HttpRequestHostsStore(context) }
+    var httpAllowedHosts by remember { mutableStateOf(httpHostsStore.getAllowedHosts()) }
+    var showAddHttpHostDialog by remember { mutableStateOf(false) }
+    var newHttpHost by remember { mutableStateOf("") }
+
     val installedStore = remember { InstalledSkillStore(context) }
     val enabledStore = remember { SkillEnabledStore(context) }
+    val aiPromptStore = remember { AiPromptStore(context) }
+    var allowAiCreateSkill by remember { mutableStateOf(aiPromptStore.getAllowAiToCreateSkill()) }
     var installedIds by remember { mutableStateOf(installedStore.getInstalledIds()) }
     var enabledIds by remember { mutableStateOf(enabledStore.getEnabledIds().toSet()) }
 
@@ -236,6 +248,37 @@ fun SkillsScreen(
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
+                        Spacer(Modifier.height(Spacing.sm))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    stringResource(R.string.skills_allow_ai_create_title),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    stringResource(R.string.skills_allow_ai_create_subtitle),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.92f)
+                                )
+                            }
+                            Switch(
+                                checked = allowAiCreateSkill,
+                                onCheckedChange = {
+                                    allowAiCreateSkill = it
+                                    aiPromptStore.setAllowAiToCreateSkill(it)
+                                }
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.skills_allow_ai_create_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.88f)
+                        )
                     }
                 }
             }
@@ -307,6 +350,80 @@ fun SkillsScreen(
                 if (allowedUrls.isEmpty()) {
                     Text(
                         "尚未加入任何白名單來源。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = Spacing.md)
+                    )
+                }
+            }
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.md),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "HTTP 請求白名單",
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                            Text(
+                                "全域工具 http_request 僅可連線至此處列出的主機（HTTPS）。可使用完整主機名或 *.example.com。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        OutlinedButton(onClick = { showAddHttpHostDialog = true }) {
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = null,
+                                modifier = Modifier.padding(end = Spacing.xs)
+                            )
+                            Text("新增")
+                        }
+                    }
+                }
+            }
+            items(httpAllowedHosts) { host ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.md),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(host, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                        IconButton(
+                            onClick = {
+                                httpHostsStore.removeAllowedHost(host)
+                                httpAllowedHosts = httpHostsStore.getAllowedHosts()
+                            }
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = "移除")
+                        }
+                    }
+                }
+            }
+            item {
+                if (httpAllowedHosts.isEmpty()) {
+                    Text(
+                        "尚未加入 HTTP 主機；http_request 將回傳 HTTP_HOSTS_NOT_CONFIGURED。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = Spacing.md)
@@ -448,6 +565,44 @@ fun SkillsScreen(
                 },
                 dismissButton = {
                     TextButton(onClick = { showAddDialog = false; newUrl = "" }) { Text("取消") }
+                }
+            )
+        }
+        if (showAddHttpHostDialog) {
+            AlertDialog(
+                onDismissRequest = { showAddHttpHostDialog = false; newHttpHost = "" },
+                title = { Text("新增 HTTP 主機") },
+                text = {
+                    Column {
+                        Text(
+                            "例如 api.example.com 或 *.example.com。僅限 https 請求。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(Spacing.sm))
+                        OutlinedTextField(
+                            value = newHttpHost,
+                            onValueChange = { newHttpHost = it },
+                            label = { Text("主機名稱") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (newHttpHost.isNotBlank()) {
+                                httpHostsStore.addAllowedHost(newHttpHost.trim())
+                                httpAllowedHosts = httpHostsStore.getAllowedHosts()
+                                newHttpHost = ""
+                                showAddHttpHostDialog = false
+                            }
+                        }
+                    ) { Text("新增") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAddHttpHostDialog = false; newHttpHost = "" }) { Text("取消") }
                 }
             )
         }

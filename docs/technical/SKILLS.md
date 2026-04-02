@@ -15,6 +15,7 @@ OpenRing 目前採用雙層 Skill 模型：
 - `call_skill.input` 若存在必須是 JSON object。
 - `run(input)` 回傳必須是 JSON object。
 - ZIP 內可選擇攜帶 `SKILL.md`；啟用後會注入 system guidance。
+- 若要在 Skill 內呼叫 HTTPS API：於 manifest 宣告網路權限並填寫非空的 `networkHosts`；執行時會提供同步函式 `__openring_fetch`（僅允許清單內主機）。
 
 目前與 OpenClaw 尚未完全等價：
 
@@ -53,6 +54,7 @@ Skills can be installed from:
 1. Local ZIP import in `SkillsScreen`
 2. URL install (`install_skill` tool or Skills UI), only when URL matches `SkillAllowedSourcesStore` allowlist
 3. Built-in template catalog metadata in `SkillsScreen` (download-on-install; scripts are fetched only after user clicks install)
+4. **`create_skill` tool** (Gemini): inline `manifest` + `script` strings written by `SkillInstall.installFromInlineContent`. Requires **user opt-in** (`AiPromptStore.allow_ai_create_skill`, toggle in Skills UI). Optional `skill_md`; omit key to keep existing `SKILL.md` on overwrite; empty string removes `SKILL.md`. `overwrite=true` replaces an existing canonical `skillId`.
 
 ### Install identity (`skillId`) is canonical
 
@@ -91,6 +93,16 @@ Hard requirements:
 - `call_skill.input` must be a JSON object when provided
 - `run(input)` return value must serialize and parse into a **JSON object**
 
+### `__openring_fetch` (HTTPS, host allowlist)
+
+When `permissions` request network **and** `networkHosts` is non-empty, the runtime registers a synchronous global `__openring_fetch(requestJsonString)` implemented in Kotlin (OkHttp).
+
+- Request JSON shape: `{ "url": "https://...", "method": "GET", "headers": { }, "body": null }`  
+  - `method` defaults to `GET`. Allowed: `GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`.  
+  - Only **https** URLs are allowed. The URL host must match one entry in `networkHosts`.
+- Response JSON shape: `{ "ok": true, "status": 200, "headers": { }, "body": "<string>", "truncated": false }` or `{ "ok": false, "error": "..." }`.  
+  - Response bodies are capped (currently 512 KiB); `truncated` is set when clipped.
+
 ---
 
 ## Manifest Contract (`manifest.json`)
@@ -104,9 +116,12 @@ Hard requirements:
 - `inputSchema`: if present, must be a JSON object
 - `outputSchema`: if present, must be a JSON object
 
-### Optional, currently documentation-only
+### Optional — network (enforced)
 
-- `permissions`: stored as-is; not enforced in QuickJS runtime today
+- `permissions`: declare network access using either:
+  - JSON array containing `"network"`, e.g. `"permissions": ["network"]`, or
+  - JSON object with a `network` key (boolean, string, or nested object), e.g. `"permissions": { "network": true }`.
+- `networkHosts` (**required** when network permission is declared): non-empty JSON array of hostnames allowed for HTTPS calls from the skill script (see `__openring_fetch` below). Rules support exact hostnames or `*.example.com` wildcard suffixes. A bare `*` rule is rejected.
 
 ### Execution-time behavior notes
 
@@ -203,8 +218,8 @@ Execution path:
 
 ## Security and Guardrails
 
-- QuickJS Skill runtime is pure JS sandbox (no DOM/Node APIs).
-- `permissions` in manifest is not enforced yet.
+- QuickJS Skill runtime is a pure JS sandbox (no DOM/Node APIs).
+- Network access is **opt-in**: `permissions` must request network and `networkHosts` must list allowed HTTPS hosts; the host implements HTTPS-only requests and enforces the allowlist.
 - URL install is restricted by user-managed allowlist.
 - Skill enable/disable is user-controlled through `SkillEnabledStore` and the Skills UI.
 

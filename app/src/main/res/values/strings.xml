@@ -156,6 +156,9 @@
     <string name="system_prompt_allow_ai_modify_title">Allow AI to modify System Prompt</string>
     <string name="system_prompt_allow_ai_modify_subtitle">When enabled, AI can update the system prompt via set_system_prompt tool</string>
     <string name="system_prompt_allow_ai_modify_hint">Enable only in trusted usage scenarios.</string>
+    <string name="skills_allow_ai_create_title">Allow AI to create skills</string>
+    <string name="skills_allow_ai_create_subtitle">When enabled, AI can install skills via create_skill (inline manifest + script)</string>
+    <string name="skills_allow_ai_create_hint">Enable only in trusted usage scenarios. Overwriting an existing skill requires overwrite=true in the tool call.</string>
     <string name="morality_title">Morality</string>
     <string name="morality_lock_title">Morality lock</string>
     <string name="morality_lock_enabled">Enabled (recommended)</string>

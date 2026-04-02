@@ -1052,7 +1052,7 @@ fun ChatScreen(
                                         Toast.makeText(context, "目前正在執行，請稍後再重跑", Toast.LENGTH_SHORT).show()
                                         return@MessageRow
                                     }
-                                    if (runnableGemini.isEmpty()) {
+                                    if (!canRunChat) {
                                         onNavigateToSettings()
                                         return@MessageRow
                                     }
@@ -1088,7 +1088,8 @@ fun ChatScreen(
                         color = MaterialTheme.colorScheme.surface,
                         tonalElevation = 0.dp
                     ) {
-                        val canSend = !running && input.isNotBlank() && runnableGemini.isNotEmpty()
+                        // 須與 canRunChat 一致：僅地端模型時 runnableGemini 為空，但仍應可送出。
+                        val canSend = !running && input.isNotBlank() && canRunChat
                         val canCancel = running && runningSessionId != null
                         Row(
                             modifier = Modifier
@@ -1145,7 +1146,7 @@ fun ChatScreen(
                                             updateProcessingText("已送出中斷要求，正在停止…")
                                             return@IconButton
                                         }
-                                        if (runnableGemini.isEmpty()) {
+                                        if (!canRunChat) {
                                             onNavigateToSettings()
                                             return@IconButton
                                         }

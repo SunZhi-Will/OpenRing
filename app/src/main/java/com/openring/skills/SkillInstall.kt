@@ -18,6 +18,11 @@ object SkillInstall {
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** Max sizes for AI inline install (`create_skill`); avoids runaway token payloads. */
+    const val MAX_MANIFEST_JSON_CHARS = 64 * 1024
+    const val MAX_SCRIPT_JS_CHARS = 512 * 1024
+    const val MAX_SKILL_MD_CHARS = 128 * 1024
+
     sealed class Result {
         data class Ok(val skillId: String) : Result()
         data class Err(val code: String, val message: String) : Result()
@@ -93,6 +98,62 @@ object SkillInstall {
         } else null
     }
 
+    /**
+     * Install or replace a skill from inline strings (e.g. AI `create_skill` tool).
+     *
+     * @param skillMdSpecified if false, existing [SKILL.md] is left unchanged when overwriting.
+     * If true, [skillMdContent] empty or null removes [SKILL.md]; non-blank writes the file.
+     */
+    fun installFromInlineContent(
+        context: Context,
+        manifestJson: String,
+        scriptJs: String,
+        overwrite: Boolean,
+        skillMdSpecified: Boolean,
+        skillMdContent: String?
+    ): Result {
+        if (manifestJson.length > MAX_MANIFEST_JSON_CHARS) {
+            return Result.Err("TOO_LARGE", "manifest.json exceeds $MAX_MANIFEST_JSON_CHARS characters")
+        }
+        if (scriptJs.length > MAX_SCRIPT_JS_CHARS) {
+            return Result.Err("TOO_LARGE", "script.js exceeds $MAX_SCRIPT_JS_CHARS characters")
+        }
+        if (skillMdSpecified) {
+            val len = skillMdContent?.length ?: 0
+            if (len > MAX_SKILL_MD_CHARS) {
+                return Result.Err("TOO_LARGE", "SKILL.md exceeds $MAX_SKILL_MD_CHARS characters")
+            }
+        }
+        return when (val v = validateManifest(manifestJson)) {
+            is ManifestValidation.Err -> Result.Err(v.code, v.message)
+            is ManifestValidation.Ok -> {
+                val skillId = v.skillId
+                val dir = File(context.filesDir, "skills/$skillId")
+                if (dir.exists() && !overwrite) {
+                    return Result.Err(
+                        "SKILL_EXISTS",
+                        "Skill '$skillId' already exists. Pass overwrite=true to replace files."
+                    )
+                }
+                dir.mkdirs()
+                File(dir, "manifest.json").writeText(manifestJson.trim())
+                File(dir, "script.js").writeText(scriptJs)
+                if (skillMdSpecified) {
+                    val mdFile = File(dir, "SKILL.md")
+                    val md = skillMdContent?.trim().orEmpty()
+                    if (md.isEmpty()) {
+                        mdFile.delete()
+                    } else {
+                        mdFile.writeText(md)
+                    }
+                }
+                InstalledSkillStore(context).addInstalled(skillId)
+                SkillEnabledStore(context).setEnabled(skillId, true)
+                Result.Ok(skillId)
+            }
+        }
+    }
+
     internal fun installFromManifestAndScript(
         context: Context,
         manifestJson: String,
@@ -137,6 +198,13 @@ object SkillInstall {
                 return ManifestValidation.Err(
                     "INVALID_MANIFEST",
                     "manifest.json 'outputSchema' must be a JSON object"
+                )
+            }
+            val netCfg = SkillNetworkConfig.parse(manifestJson)
+            if (netCfg.networkEnabled && netCfg.allowedHosts.isEmpty()) {
+                return ManifestValidation.Err(
+                    "INVALID_MANIFEST",
+                    "manifest.json requires non-empty 'networkHosts' when network permission is declared"
                 )
             }
             ManifestValidation.Ok(skillId)

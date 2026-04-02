@@ -24,6 +24,13 @@ class AiPromptStore(context: Context) {
         prefs.edit().putBoolean(KEY_ALLOW_AI_SET_SYSTEM_PROMPT, allowed).apply()
     }
 
+    /** Whether AI may use `create_skill` to install inline manifest + script (default off). */
+    fun getAllowAiToCreateSkill(): Boolean = prefs.getBoolean(KEY_ALLOW_AI_CREATE_SKILL, false)
+
+    fun setAllowAiToCreateSkill(allowed: Boolean) {
+        prefs.edit().putBoolean(KEY_ALLOW_AI_CREATE_SKILL, allowed).apply()
+    }
+
     fun getMaxRounds(): Int = prefs.getInt(KEY_MAX_ROUNDS, DEFAULT_MAX_ROUNDS).coerceIn(MIN_MAX_ROUNDS, MAX_MAX_ROUNDS)
 
     fun setMaxRounds(value: Int) {
@@ -35,6 +42,7 @@ class AiPromptStore(context: Context) {
         private const val KEY_SYSTEM_PROMPT = "system_prompt"
         private const val KEY_MORALITY_POLICY = "morality_policy"
         private const val KEY_ALLOW_AI_SET_SYSTEM_PROMPT = "allow_ai_set_system_prompt"
+        private const val KEY_ALLOW_AI_CREATE_SKILL = "allow_ai_create_skill"
         private const val KEY_MAX_ROUNDS = "max_rounds"
         private const val DEFAULT_MAX_ROUNDS = 30
         private const val MIN_MAX_ROUNDS = 5
