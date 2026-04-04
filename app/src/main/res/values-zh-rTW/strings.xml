@@ -28,6 +28,13 @@
     <string name="menu_models">模型</string>
     <string name="go_to_models_page">前往模型頁</string>
     <string name="settings_section_general">一般</string>
+    <string name="settings_section_chat_data">聊天資料</string>
+    <string name="settings_clear_all_chats_title">清除所有對話</string>
+    <string name="settings_clear_all_chats_subtitle">刪除此裝置上所有對話工作階段、訊息、工具執行紀錄與工作階段範圍記憶；不刪除全域記憶。</string>
+    <string name="settings_clear_all_chats_confirm_title">確定清除所有對話？</string>
+    <string name="settings_clear_all_chats_confirm_body">此操作無法復原。排程腳本與技能不會被刪除。</string>
+    <string name="settings_clear_all_chats_done">已清除所有對話</string>
+    <string name="settings_clear_all_chats_confirm_action">全部清除</string>
     <string name="settings_section_models">模型</string>
     <string name="settings_models_reorder_hint">長按卡片後上下拖曳可調整模型優先順序。</string>
     <string name="notification_always_on_running">常駐排程運行中 · 終止後待下次開啟 App 再恢復</string>

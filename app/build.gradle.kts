@@ -110,5 +110,6 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0")
 
     // On-device GGUF inference (text); see https://github.com/CodeShipping/llama-kotlin-android
+    // Newer architectures (e.g. Gemma 4) may require a release that bundles a recent llama.cpp; bump when available.
     implementation("org.codeshipping:llama-kotlin-android:0.1.3")
 }

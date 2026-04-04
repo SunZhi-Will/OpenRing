@@ -90,6 +90,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.zIndex
 import com.openring.ui.theme.Spacing
 import com.openring.R
+import com.openring.data.ChatRepository
 import com.openring.security.ApiKeyStore
 import com.openring.localmodel.LocalLlmEngine
 import com.openring.localmodel.LocalModelCatalog
@@ -113,6 +114,7 @@ fun SettingsScreen(
     screenMode: SettingsScreenMode = SettingsScreenMode.GENERAL,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val chatRepository = remember { ChatRepository(context) }
     val keyStore = remember { ApiKeyStore(context) }
     val modelStore = remember { ModelStore(context) }
     val localModelSupported = remember { LocalModelSupport.isSupportedDevice() }
@@ -157,6 +159,7 @@ fun SettingsScreen(
     var addDialogOpen by remember { mutableStateOf(false) }
     var editDialogModelId by remember { mutableStateOf<String?>(null) }
     var deleteDialogModelId by remember { mutableStateOf<String?>(null) }
+    var clearAllChatsDialogOpen by remember { mutableStateOf(false) }
 
     val isModelMode = screenMode == SettingsScreenMode.AI_MODEL
 
@@ -290,6 +293,47 @@ fun SettingsScreen(
                             )
                         }
                         Icon(Icons.Default.ChevronRight, contentDescription = null)
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = context.getString(R.string.settings_section_chat_data),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = { clearAllChatsDialogOpen = true }),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.md),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = context.getString(R.string.settings_clear_all_chats_title),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.xs))
+                            Text(
+                                text = context.getString(R.string.settings_clear_all_chats_subtitle),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             } else {
@@ -456,6 +500,41 @@ fun SettingsScreen(
             dismissButton = { TextButton(onClick = { deleteDialogModelId = null }) { Text("取消") } }
         )
     }
+
+    if (clearAllChatsDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { clearAllChatsDialogOpen = false },
+            title = { Text(context.getString(R.string.settings_clear_all_chats_confirm_title)) },
+            text = { Text(context.getString(R.string.settings_clear_all_chats_confirm_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        clearAllChatsDialogOpen = false
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                chatRepository.clearAllChats()
+                            }
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.settings_clear_all_chats_done),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text(context.getString(R.string.settings_clear_all_chats_confirm_action))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { clearAllChatsDialogOpen = false }) {
+                    Text(context.getString(R.string.cancel))
+                }
+            }
+        )
+    }
 }
 
 enum class SettingsScreenMode {
@@ -482,11 +561,37 @@ private fun ModelReorderList(
     var draggingItemId by remember { mutableStateOf<String?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
     var frozenDragCardRootTop by remember { mutableFloatStateOf(0f) }
+    /** 長按當下列高度（px），拖曳期間固定用於座標換算，避免 overlay 與列表行高不一致時跳動 */
+    var draggingItemHeightPx by remember { mutableFloatStateOf(0f) }
     var lastMenuFor by remember { mutableStateOf<String?>(null) }
     var boxTopY by remember { mutableStateOf(0f) }
     val cardShape = MaterialTheme.shapes.medium
     val shadowSpotColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
     val draggingIndex = draggingItemId?.let { id -> models.indexOfFirst { it.id == id } }?.takeIf { it >= 0 }
+
+    fun reorderToTarget(current: Int, targetIndex: Int, persist: Boolean = true) {
+        if (targetIndex == current || targetIndex !in models.indices) return
+        val moved = models.removeAt(current)
+        models.add(targetIndex, moved)
+        if (persist) onReorderCommitted()
+    }
+
+    /**
+     * Maps finger Y (lazy list viewport coords, same as [LazyListItemInfo.offset]) to drop index.
+     * Only used on drag end — no reorder during drag, so row heights stay stable while moving.
+     */
+    fun computeFinalDropIndex(fingerCenterViewportY: Float): Int {
+        val infos = listState.layoutInfo.visibleItemsInfo
+            .filter { it.index in models.indices }
+            .sortedBy { it.index }
+        if (infos.isEmpty()) return models.indexOfFirst { it.id == draggingItemId }.coerceAtLeast(0)
+        for (info in infos) {
+            val top = info.offset.toFloat()
+            val mid = top + info.size / 2f
+            if (fingerCenterViewportY < mid) return info.index
+        }
+        return models.lastIndex
+    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Box(
@@ -505,27 +610,6 @@ private fun ModelReorderList(
                 val ready = isModelReady(item)
                 val menuExpanded = lastMenuFor == item.id
 
-                fun reorderToTarget(current: Int, targetIndex: Int, persist: Boolean = true) {
-                    if (targetIndex == current || targetIndex !in models.indices) return
-                    val moved = models.removeAt(current)
-                    // 目標為「放下後該項在清單中的索引」。remove 後直接 add(targetIndex) 即可（勿用 targetIndex-1，否則 0↔1 互換會加回原位）。
-                    models.add(targetIndex, moved)
-                    if (persist) onReorderCommitted()
-                }
-                fun computeTargetIndex(current: Int): Int {
-                    val visible = listState.layoutInfo.visibleItemsInfo
-                    if (visible.isEmpty()) return current
-                    val itemSize = visible.firstOrNull { it.index == current }?.size?.toFloat() ?: 80f
-                    val draggedCenterY = frozenDragCardRootTop - boxTopY + dragOffsetY + itemSize / 2f
-                    // 勿把「正在拖的那一列」當成落點，否則拖第一項時距離永遠最近的是自己，無法換到第二列。
-                    val candidates = visible.filter { it.index != current }
-                    if (candidates.isEmpty()) return current
-                    val targetInfo = candidates.minByOrNull { info ->
-                        val mid = info.offset + info.size / 2f
-                        kotlin.math.abs(mid - draggedCenterY)
-                    }
-                    return targetInfo?.index?.coerceIn(0, models.lastIndex) ?: current
-                }
                 val dragHandleModifier = Modifier.pointerInput(item.id) {
                     detectDragGesturesAfterLongPress(
                         onDragStart = {
@@ -533,39 +617,40 @@ private fun ModelReorderList(
                             frozenDragCardRootTop = cardRootTopById[item.id] ?: 0f
                             draggingItemId = item.id
                             dragOffsetY = 0f
+                            val idx = models.indexOfFirst { it.id == item.id }
+                            draggingItemHeightPx = listState.layoutInfo.visibleItemsInfo
+                                .find { it.index == idx }
+                                ?.size
+                                ?.toFloat()
+                                ?: 80f
                         },
                         onDragEnd = {
                             val current = models.indexOfFirst { it.id == draggingItemId }.takeIf { it >= 0 } ?: run {
                                 draggingItemId = null
                                 dragOffsetY = 0f
+                                draggingItemHeightPx = 0f
                                 return@detectDragGesturesAfterLongPress
                             }
-                            val targetIndex = computeTargetIndex(current)
+                            val fingerY =
+                                frozenDragCardRootTop - boxTopY + dragOffsetY + draggingItemHeightPx / 2f
+                            val targetIndex = computeFinalDropIndex(fingerY)
                             if (targetIndex != current) {
                                 reorderToTarget(current, targetIndex, persist = false)
                             }
                             onReorderCommitted()
                             draggingItemId = null
                             dragOffsetY = 0f
+                            draggingItemHeightPx = 0f
                         },
                         onDragCancel = {
                             onReorderCommitted()
                             draggingItemId = null
                             dragOffsetY = 0f
+                            draggingItemHeightPx = 0f
                         },
-                        onDrag = drag@{ change, dragAmount ->
+                        onDrag = { change, dragAmount ->
                             change.consume()
                             dragOffsetY += dragAmount.y
-                            val cur = models.indexOfFirst { it.id == draggingItemId }.takeIf { it >= 0 }
-                                ?: return@drag
-                            val t = computeTargetIndex(cur)
-                            if (t != cur) {
-                                reorderToTarget(cur, t, persist = false)
-                                draggingItemId?.let { id ->
-                                    frozenDragCardRootTop = cardRootTopById[id] ?: frozenDragCardRootTop
-                                }
-                                dragOffsetY = 0f
-                            }
                         }
                     )
                 }
@@ -610,7 +695,8 @@ private fun ModelReorderList(
             boxTopY = boxTopY,
             dragOffsetY = dragOffsetY,
             cardShape = cardShape,
-            shadowSpotColor = shadowSpotColor
+            shadowSpotColor = shadowSpotColor,
+            overlayMenuVisible = true
         )
     }
 }
@@ -630,7 +716,9 @@ private fun DraggingOverlayIfNeeded(
     boxTopY: Float,
     dragOffsetY: Float,
     cardShape: androidx.compose.ui.graphics.Shape,
-    shadowSpotColor: androidx.compose.ui.graphics.Color
+    shadowSpotColor: androidx.compose.ui.graphics.Color,
+    /** Match list row: keep 更多／下載按鈕占位，避免 overlay 文字換行與列表高度不一致 */
+    overlayMenuVisible: Boolean = true,
 ) {
     val item = draggingItemId?.let { id -> models.find { it.id == id } }
     if (item != null) {
@@ -647,7 +735,8 @@ private fun DraggingOverlayIfNeeded(
             boxTopY = boxTopY,
             dragOffsetY = dragOffsetY,
             cardShape = cardShape,
-            shadowSpotColor = shadowSpotColor
+            shadowSpotColor = shadowSpotColor,
+            overlayMenuVisible = overlayMenuVisible
         )
     }
 }
@@ -665,7 +754,8 @@ private fun DraggingOverlay(
     boxTopY: Float,
     dragOffsetY: Float,
     cardShape: androidx.compose.ui.graphics.Shape,
-    shadowSpotColor: androidx.compose.ui.graphics.Color
+    shadowSpotColor: androidx.compose.ui.graphics.Color,
+    overlayMenuVisible: Boolean,
 ) {
     Box(
         modifier = Modifier
@@ -678,11 +768,7 @@ private fun DraggingOverlay(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(0, (dragAnchorRootY - boxTopY + dragOffsetY).roundToInt()) }
-                .shadow(12.dp, cardShape, spotColor = shadowSpotColor)
-                .graphicsLayer {
-                    scaleX = 1.02f
-                    scaleY = 1.02f
-                },
+                .shadow(12.dp, cardShape, spotColor = shadowSpotColor),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             ModelListCardContent(
@@ -698,7 +784,7 @@ private fun DraggingOverlay(
                 onRequestEdit = { },
                 onRequestDelete = { },
                 onDismissMenu = { },
-                showMenu = false
+                showMenu = overlayMenuVisible
             )
         }
     }

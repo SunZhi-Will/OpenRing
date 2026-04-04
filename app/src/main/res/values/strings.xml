@@ -28,6 +28,13 @@
     <string name="menu_models">Models</string>
     <string name="go_to_models_page">Go to Models page</string>
     <string name="settings_section_general">General</string>
+    <string name="settings_section_chat_data">Chat data</string>
+    <string name="settings_clear_all_chats_title">Clear all conversations</string>
+    <string name="settings_clear_all_chats_subtitle">Remove every chat session, messages, tool traces, and session-scoped memory on this device. Global memory is kept.</string>
+    <string name="settings_clear_all_chats_confirm_title">Clear all conversations?</string>
+    <string name="settings_clear_all_chats_confirm_body">This cannot be undone. Scripts and skills are not deleted.</string>
+    <string name="settings_clear_all_chats_done">All conversations cleared</string>
+    <string name="settings_clear_all_chats_confirm_action">Clear all</string>
     <string name="settings_section_models">Models</string>
     <string name="settings_models_reorder_hint">Long press and drag cards to reorder model priority.</string>
     <string name="notification_always_on_running">Resident schedules active · stop until next app launch</string>

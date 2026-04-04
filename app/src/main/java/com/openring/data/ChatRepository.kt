@@ -2,6 +2,7 @@ package com.openring.data
 
 import android.content.Context
 import com.openring.agent.ChatLogEntry
+import com.openring.agent.ExecutionLogStore
 import com.openring.data.db.OpenRingDatabase
 import com.openring.chat.ChatAttachmentModelParts
 import com.openring.chat.ChatAttachmentPayload
@@ -134,6 +135,20 @@ class ChatRepository(context: Context) {
      * 若刪除的是目前選中的工作階段，會改選最近一則，沒有則新建。
      * @return 刪除後目前作用中的 session id
      */
+    /**
+     * 刪除所有對話工作階段、訊息、執行 log（Room 外鍵 CASCADE）與工作階段範圍記憶；
+     * 清空記憶體中的執行紀錄 UI 狀態；建立一則新的空白工作階段並設為使用中。
+     * 不刪除全域（global）範圍的記憶向量／事實。
+     */
+    suspend fun clearAllChats(): String {
+        db().memoryFactDao().deleteAllSessionScoped()
+        db().memoryVectorDao().deleteAllSessionScoped()
+        db().chatSessionDao().deleteAll()
+        prefs.edit().remove(KEY_ACTIVE_SESSION).apply()
+        ExecutionLogStore.clear()
+        return createSessionAndSelect()
+    }
+
     suspend fun deleteSession(sessionId: String): String {
         db().memoryFactDao().deleteAllForSessionScope(sessionId)
         db().memoryVectorDao().deleteAllForSessionScope(sessionId)

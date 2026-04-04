@@ -47,6 +47,26 @@ object LocalModelCatalog {
             downloadUrl = "https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf",
             sizeBytesApprox = 1_650_000_000L,
         ),
+        /**
+         * Google Gemma 4 E2B Instruct（[模型資訊卡](https://ai.google.dev/gemma/docs/core/model_card_4?hl=zh-tw)）。
+         * 僅文字；多模態／音訊需另接 mmproj，OpenRing 目前未支援。
+         * 需較新 llama.cpp／JNI 才能載入；若載入失敗請升級 `llama-kotlin-android` 或等候上游支援。
+         */
+        LocalModelCatalogEntry(
+            id = "gemma-4-e2b-it-q4km",
+            label = "Gemma 4 E2B IT (Q4_K_M) · experimental",
+            fileName = "google_gemma-4-E2B-it-Q4_K_M.gguf",
+            downloadUrl = "https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF/resolve/main/google_gemma-4-E2B-it-Q4_K_M.gguf",
+            sizeBytesApprox = 3_460_000_000L,
+        ),
+        /** Meta Llama 3.2 1B Instruct（單檔 GGUF；常見「地端輕量」推薦）。來源：bartowski 量化。 */
+        LocalModelCatalogEntry(
+            id = "llama-3.2-1b-instruct-q4km",
+            label = "Llama 3.2 1B Instruct (Q4_K_M)",
+            fileName = "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+            downloadUrl = "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+            sizeBytesApprox = 870_000_000L,
+        ),
     )
 
     fun byId(id: String): LocalModelCatalogEntry? = ENTRIES.firstOrNull { it.id == id }

@@ -53,9 +53,7 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -132,10 +130,10 @@ import com.openring.data.model.ChatMessageEntity
 import com.openring.data.model.ChatSession
 import com.openring.localmodel.LocalLlmChatPrompt
 import com.openring.localmodel.LocalModelCatalog
-import com.openring.localmodel.LocalLlmEngine
 import com.openring.localmodel.LocalModelSupport
 import com.openring.settings.AiPromptStore
 import com.openring.security.ApiKeyStore
+import com.openring.skills.SkillInstructionCatalog
 import com.openring.settings.ModelStore
 import com.openring.ui.notifications.AiRunNotification
 import com.openring.ui.theme.Spacing
@@ -190,8 +188,6 @@ fun ChatScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToExecutionLog: () -> Unit,
     onNavigateToPermissions: () -> Unit,
-    onNavigateToCloudRelay: () -> Unit = {},
-    onNavigateToPromptNotes: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -668,98 +664,82 @@ fun ChatScreen(
                                         Log.w("OpenRing", "Local memory injection failed", e)
                                         ""
                                     }
-                                    val useLocalToolAgent = false
-                                    if (useLocalToolAgent) {
-                                        val toolCatalog = ToolSchemas.buildLocalToolCatalogText(context)
-                                        val r = localReActCoordinator.run(
-                                            catalogId = opt.model,
-                                            userText = trimmed,
-                                            priorContents = priorContents,
-                                            systemPrompt = aiPromptStore.getSystemPrompt(),
-                                            memoryInjection = memInject,
-                                            toolCatalogText = toolCatalog,
-                                            shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
-                                            onTurn = { turn ->
-                                                runScope.launch(Dispatchers.Main) {
-                                                    recordTurnToLog(turn)
-                                                }
-                                                runScope.launch(Dispatchers.IO) {
-                                                    val toolName = turn.toolName ?: return@launch
-                                                    when (turn.role) {
-                                                        "tool_call" -> {
-                                                            val args = turn.toolResult ?: buildJsonObject { }
-                                                            chatRepository.appendExecutionLog(
-                                                                chatSid,
-                                                                ChatLogEntry.ToolCall(
-                                                                    toolName = toolName,
-                                                                    args = args,
-                                                                    createdAtMs = nowMs()
-                                                                )
-                                                            )
-                                                        }
-
-                                                        "tool_result" -> {
-                                                            val resultObj = turn.toolResult ?: buildJsonObject { }
-                                                            chatRepository.appendExecutionLog(
-                                                                chatSid,
-                                                                ChatLogEntry.ToolResult(
-                                                                    toolName = toolName,
-                                                                    result = sanitizeJsonForLog(toolName, resultObj),
-                                                                    createdAtMs = nowMs()
-                                                                )
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                            onStatus = { msg ->
-                                                runScope.launch(Dispatchers.Main) {
-                                                    updateProcessingText(msg)
-                                                    val idx = messages.indexOfFirst { it.id == placeholderId }
-                                                    if (idx >= 0) {
-                                                        messages[idx] = messages[idx].copy(text = msg)
-                                                    }
-                                                }
-                                            },
-                                        )
-                                        withContext(Dispatchers.Main) {
-                                            val idx = messages.indexOfFirst { it.id == placeholderId }
-                                            if (idx >= 0) {
-                                                messages[idx] = messages[idx].copy(text = r.finalText)
-                                            }
-                                        }
-                                        return@withContext r.finalText
-                                    } else {
-                                        val attachLocal = attachments.joinToString("\n\n") {
-                                            ChatAttachmentModelParts.toLocalTextBlock(it)
-                                        }
-                                        val currentUserMessage = when {
-                                            attachLocal.isBlank() -> trimmed
-                                            trimmed.isBlank() -> attachLocal
-                                            else -> "$trimmed\n\n$attachLocal"
-                                        }
-                                        val style = LocalLlmChatPrompt.styleForCatalogId(opt.model)
-                                        val localPrompt = LocalLlmChatPrompt.buildPrompt(
-                                            style = style,
-                                            systemPrompt = aiPromptStore.getSystemPrompt(),
-                                            memoryInjection = memInject,
-                                            priorContents = priorContents,
-                                            currentUserMessage = currentUserMessage,
-                                        )
-                                        val text = LocalLlmEngine.generate(
-                                            context = context,
-                                            catalogId = opt.model,
-                                            prompt = localPrompt,
-                                            isCancelled = { RunCancellationRegistry.isCancelled(runSessionId) },
-                                        ).trim().ifBlank { "（本機模型未產生內容）" }
-                                        withContext(Dispatchers.Main) {
-                                            val idx = messages.indexOfFirst { it.id == placeholderId }
-                                            if (idx >= 0) {
-                                                messages[idx] = messages[idx].copy(text = text)
-                                            }
-                                        }
-                                        return@withContext text
+                                    val attachLocal = attachments.joinToString("\n\n") {
+                                        ChatAttachmentModelParts.toLocalTextBlock(it)
                                     }
+                                    val localUserText = when {
+                                        attachLocal.isBlank() -> trimmed
+                                        trimmed.isBlank() -> attachLocal
+                                        else -> "$trimmed\n\n$attachLocal"
+                                    }
+                                    val squeezedBase = LocalLlmChatPrompt.squeezeSystemForTinyLlamaCatalog(
+                                        opt.model,
+                                        aiPromptStore.getSystemPrompt(),
+                                    )
+                                    val skillSection =
+                                        SkillInstructionCatalog.buildPromptSection(context).trim()
+                                            .takeIf { it.isNotBlank() }
+                                    val localSystemPrompt = listOfNotNull(
+                                        squeezedBase.trim().takeIf { it.isNotEmpty() },
+                                        skillSection,
+                                    ).joinToString("\n\n")
+                                    val toolCatalog = ToolSchemas.buildLocalToolCatalogText(context)
+                                    val r = localReActCoordinator.run(
+                                        catalogId = opt.model,
+                                        userText = localUserText,
+                                        priorContents = priorContents,
+                                        systemPrompt = localSystemPrompt,
+                                        memoryInjection = memInject,
+                                        toolCatalogText = toolCatalog,
+                                        maxRounds = maxRounds,
+                                        shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
+                                        onTurn = { turn ->
+                                            runScope.launch(Dispatchers.Main) {
+                                                recordTurnToLog(turn)
+                                            }
+                                            runScope.launch(Dispatchers.IO) {
+                                                val toolName = turn.toolName ?: return@launch
+                                                when (turn.role) {
+                                                    "tool_call" -> {
+                                                        val args = turn.toolResult ?: buildJsonObject { }
+                                                        chatRepository.appendExecutionLog(
+                                                            chatSid,
+                                                            ChatLogEntry.ToolCall(
+                                                                toolName = toolName,
+                                                                args = args,
+                                                                createdAtMs = nowMs()
+                                                            )
+                                                        )
+                                                    }
+
+                                                    "tool_result" -> {
+                                                        val resultObj = turn.toolResult ?: buildJsonObject { }
+                                                        chatRepository.appendExecutionLog(
+                                                            chatSid,
+                                                            ChatLogEntry.ToolResult(
+                                                                toolName = toolName,
+                                                                result = sanitizeJsonForLog(toolName, resultObj),
+                                                                createdAtMs = nowMs()
+                                                            )
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        // 僅更新頂部處理列；勿覆寫助理氣泡（否則會把「本機代理 回合 N」等內部狀態寫進對話，與 typing 列重複且像錯誤回覆）。
+                                        onStatus = { msg ->
+                                            runScope.launch(Dispatchers.Main) {
+                                                updateProcessingText(msg)
+                                            }
+                                        },
+                                    )
+                                    withContext(Dispatchers.Main) {
+                                        val idx = messages.indexOfFirst { it.id == placeholderId }
+                                        if (idx >= 0) {
+                                            messages[idx] = messages[idx].copy(text = r.finalText)
+                                        }
+                                    }
+                                    return@withContext r.finalText
                                 } catch (e: Exception) {
                                     Log.e(
                                         "OpenRing",
@@ -946,16 +926,6 @@ fun ChatScreen(
                             onDismissRequest = { moreMenuExpanded = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.menu_prompt_notes)) },
-                                onClick = {
-                                    moreMenuExpanded = false
-                                    onNavigateToPromptNotes()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Notes, contentDescription = null)
-                                }
-                            )
-                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.menu_workflows)) },
                                 onClick = {
                                     moreMenuExpanded = false
@@ -983,16 +953,6 @@ fun ChatScreen(
                                 },
                                 leadingIcon = {
                                     Icon(Icons.Default.Apps, contentDescription = null)
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.menu_cloud_relay)) },
-                                onClick = {
-                                    moreMenuExpanded = false
-                                    onNavigateToCloudRelay()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Cloud, contentDescription = null)
                                 }
                             )
                             DropdownMenuItem(
@@ -1054,7 +1014,7 @@ fun ChatScreen(
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.bodySmall
                         )
-                        TextButton(onClick = onNavigateToSettings) {
+                        TextButton(onClick = onNavigateToSkills) {
                             Text(stringResource(R.string.go_to_models_page))
                         }
                     }
@@ -1122,7 +1082,7 @@ fun ChatScreen(
                                         return@MessageRow
                                     }
                                     if (!canRunChat) {
-                                        onNavigateToSettings()
+                                        onNavigateToSkills()
                                         return@MessageRow
                                     }
                                     val rerunText = msg.text.trim()
@@ -1265,7 +1225,7 @@ fun ChatScreen(
                                             return@IconButton
                                         }
                                         if (!canRunChat) {
-                                            onNavigateToSettings()
+                                            onNavigateToSkills()
                                             return@IconButton
                                         }
                                         val text = input.trim()

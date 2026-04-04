@@ -29,6 +29,16 @@ class SkillEnabledStore(context: Context) {
         prefs.edit().putString(KEY_LIST, current.joinToString(SEP)).apply()
     }
 
+    /** Replaces the enabled set (fleet / relay sync). Preserves order of [ids]. */
+    fun replaceEnabledIds(ids: List<String>) {
+        val unique = LinkedHashSet<String>()
+        for (s in ids) {
+            val t = s.trim()
+            if (t.isNotEmpty()) unique.add(t)
+        }
+        prefs.edit().putString(KEY_LIST, unique.joinToString(SEP)).apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "openring_enabled_skills_prefs"
         private const val KEY_LIST = "enabled_skill_ids"

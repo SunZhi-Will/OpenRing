@@ -2,6 +2,7 @@ package com.openring.agent
 
 import android.content.Context
 import android.util.Log
+import com.openring.BuildConfig
 import com.openring.gemini.model.Content
 import com.openring.localmodel.LocalLlmChatPrompt
 import com.openring.localmodel.LocalLlmEngine
@@ -106,6 +107,17 @@ Tools:
             val parsed = parseLocalAgentModelOutput(raw)
             val calls = parsed.toolCalls
             val finalOnly = parsed.finalText?.takeIf { it.isNotBlank() }
+
+            if (BuildConfig.DEBUG) {
+                val mode = when {
+                    calls.isNotEmpty() ->
+                        "tool_calls=${calls.size}:" + calls.joinToString(",") { it.first }
+                    finalOnly != null -> "final(len=${finalOnly.length})"
+                    else -> "fallback_raw(len=${raw.length})"
+                }
+                val head = raw.trim().replace("\n", " ").take(180)
+                Log.d(TAG, "LocalReAct parse round=$round $mode rawHead=$head")
+            }
 
             if (calls.isEmpty()) {
                 val text = finalOnly ?: raw.trim().ifBlank { "（本機模型未產生內容）" }

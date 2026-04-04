@@ -26,4 +26,7 @@ interface MemoryVectorDao {
 
     @Query("DELETE FROM memory_vector_chunks WHERE scope = 'session' AND sessionId = :sessionId")
     suspend fun deleteAllForSessionScope(sessionId: String)
+
+    @Query("DELETE FROM memory_vector_chunks WHERE scope = 'session'")
+    suspend fun deleteAllSessionScoped()
 }

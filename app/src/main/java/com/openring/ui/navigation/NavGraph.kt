@@ -97,9 +97,7 @@ fun OpenRingNavHost(
                 onNavigateToSkills = { navController.navigate(Screen.AiSettings.route) },
                 onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
                 onNavigateToExecutionLog = { navController.navigate(Screen.ExecutionLog.route) },
-                onNavigateToPermissions = { navController.navigate(Screen.Permissions.route) },
-                onNavigateToCloudRelay = { navController.navigate(Screen.CloudRelay.route) },
-                onNavigateToPromptNotes = { navController.navigate(Screen.PromptNotes.route) }
+                onNavigateToPermissions = { navController.navigate(Screen.Permissions.route) }
             )
         }
         composable(Screen.ExecutionLog.route) {

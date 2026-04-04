@@ -19,6 +19,7 @@ import com.openring.R
 import com.openring.data.db.OpenRingDatabase
 import com.openring.data.model.ExecutionRecord
 import com.openring.domain.ScriptExecutor
+import com.openring.settings.FleetSettingsRelayApplier
 import com.openring.settings.OpenRingCloudRelayPrefs
 import com.openring.ui.MainActivity
 import kotlinx.coroutines.CompletableDeferred
@@ -387,6 +388,23 @@ class OpenRingCloudRelayService : Service() {
                     }
                 }
                 "REQUEST_EXECUTION_HISTORY" -> scope.launch(Dispatchers.IO) { sendExecutionHistorySnapshot() }
+                "RELAY_FLEET_SETTINGS" -> {
+                    if (isDuplicateRelayFrame(text)) {
+                        Log.w(TAG, "RELAY_FLEET_SETTINGS skipped (duplicate frame within window)")
+                    } else if (text.length > 620_000) {
+                        emitRelayLog("WARN", "RELAY_FLEET_SETTINGS rejected: payload too large")
+                    } else {
+                        val result = FleetSettingsRelayApplier.apply(applicationContext, json)
+                        if (result.error != null) {
+                            emitRelayLog("WARN", "RELAY_FLEET_SETTINGS: ${result.error}")
+                        } else {
+                            emitRelayLog(
+                                "INFO",
+                                "RELAY_FLEET_SETTINGS OK: ${result.appliedParts.joinToString(", ")}"
+                            )
+                        }
+                    }
+                }
                 "RELAY_CHAT_REPLY",
                 "RELAY_CLIENT_INFO",
                 "RELAY_DEVICE_LOG",

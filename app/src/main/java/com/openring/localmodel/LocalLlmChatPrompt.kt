@@ -20,6 +20,23 @@ object LocalLlmChatPrompt {
 
         /** Gemma 2 IT：<start_of_turn>user / model */
         GEMMA2_IT,
+
+        /** Gemma 4 IT：bartowski GGUF README 之 `<bos><|turn>system` … `<|turn>model` */
+        GEMMA4_IT,
+
+        /** Llama 3.x Instruct：start_header_id / eot_id（與官方 chat template 對齊） */
+        LLAMA3_INSTRUCT,
+    }
+
+    /**
+     * 僅供一般聊天：TinyLlama 在記憶體緊時 `llama_n_ctx` 可能遠小於請求，tokenizer 後 prompt 仍可能數十 tokens。
+     * 過長 system 會擠爆 `maxPromptTokens`（見 log `Tokenized prompt` / `Available prompt space`）。
+     */
+    fun squeezeSystemForTinyLlamaCatalog(catalogId: String, systemPrompt: String): String {
+        if (!catalogId.lowercase().contains("tinyllama")) return systemPrompt
+        val t = systemPrompt.trim()
+        if (t.length <= 180) return t
+        return "You are OpenRing. Be brief."
     }
 
     fun styleForCatalogId(catalogId: String): Style {
@@ -27,7 +44,10 @@ object LocalLlmChatPrompt {
         return when {
             id.contains("qwen") -> Style.CHATML_QWEN
             id.contains("phi") -> Style.PHI3_INSTRUCT
+            id.contains("gemma-4") || id.contains("gemma4") -> Style.GEMMA4_IT
             id.contains("gemma") -> Style.GEMMA2_IT
+            id.contains("llama-3.2") || id.contains("llama3.2") || id.contains("llama-3.1") || id.contains("llama3.1") ->
+                Style.LLAMA3_INSTRUCT
             else -> Style.TINYLLAMA_BLOCKS
         }
     }
@@ -66,6 +86,20 @@ object LocalLlmChatPrompt {
             )
 
             Style.GEMMA2_IT -> buildGemma2It(
+                systemPrompt = systemPrompt,
+                memoryInjection = memoryInjection,
+                history = history,
+                currentUser = currentUserMessage
+            )
+
+            Style.GEMMA4_IT -> buildGemma4It(
+                systemPrompt = systemPrompt,
+                memoryInjection = memoryInjection,
+                history = history,
+                currentUser = currentUserMessage
+            )
+
+            Style.LLAMA3_INSTRUCT -> buildLlama3Instruct(
                 systemPrompt = systemPrompt,
                 memoryInjection = memoryInjection,
                 history = history,
@@ -244,6 +278,82 @@ object LocalLlmChatPrompt {
     }
 
     /**
+     * Gemma 4 instruct（文字）：與 [bartowski/google_gemma-4-E2B-it-GGUF](https://huggingface.co/bartowski/google_gemma-4-E2B-it-GGUF) README 單輪範例一致並延伸多輪。
+     */
+    private fun buildGemma4It(
+        systemPrompt: String,
+        memoryInjection: String,
+        history: List<Pair<String, String>>,
+        currentUser: String,
+    ): String = buildString {
+        val sys = systemPrompt.trim()
+        val mem = memoryInjection.trim()
+        val systemBlock = buildString {
+            if (sys.isNotEmpty()) append(sys)
+            if (mem.isNotEmpty()) {
+                if (isNotEmpty()) append("\n\n")
+                append("Memory (text only, no tools):\n")
+                append(mem)
+            }
+        }.trim()
+        append("<bos>")
+        if (systemBlock.isNotEmpty()) {
+            append("<|turn>system\n")
+            append(systemBlock)
+            append("<turn|>\n")
+        }
+        for ((u, a) in history) {
+            append("<|turn>user\n")
+            append(u.trim())
+            append("<turn|>\n")
+            append("<|turn>model\n")
+            append(a.trim())
+            append("<turn|>\n")
+        }
+        append("<|turn>user\n")
+        append(currentUser.trim())
+        append("<turn|>\n")
+        append("<|turn>model\n")
+    }
+
+    /** Llama 3.x Instruct（含 3.2 1B）：Meta 文件中的 header / eot 標記。 */
+    private fun buildLlama3Instruct(
+        systemPrompt: String,
+        memoryInjection: String,
+        history: List<Pair<String, String>>,
+        currentUser: String,
+    ): String = buildString {
+        val sys = systemPrompt.trim()
+        val mem = memoryInjection.trim()
+        val systemBlock = buildString {
+            if (sys.isNotEmpty()) append(sys)
+            if (mem.isNotEmpty()) {
+                if (isNotEmpty()) append("\n\n")
+                append("Memory (text only, no tools):\n")
+                append(mem)
+            }
+        }.trim()
+        append("<|begin_of_text|>")
+        if (systemBlock.isNotEmpty()) {
+            append("<|start_header_id|>system<|end_header_id|>\n\n")
+            append(systemBlock)
+            append("<|eot_id|>")
+        }
+        for ((u, a) in history) {
+            append("<|start_header_id|>user<|end_header_id|>\n\n")
+            append(u.trim())
+            append("<|eot_id|>")
+            append("<|start_header_id|>assistant<|end_header_id|>\n\n")
+            append(a.trim())
+            append("<|eot_id|>")
+        }
+        append("<|start_header_id|>user<|end_header_id|>\n\n")
+        append(currentUser.trim())
+        append("<|eot_id|>")
+        append("<|start_header_id|>assistant<|end_header_id|>\n\n")
+    }
+
+    /**
      * 本機代理多輪：[buildPrompt] 已結束在 assistant 起頭；接上模型輸出後，插入 User 回合（工具結果）再開新 assistant。
      */
     fun appendAgentToolRound(
@@ -258,6 +368,9 @@ object LocalLlmChatPrompt {
             Style.CHATML_QWEN -> "$m\n<|im_end|>\n<|im_start|>user\n$u\n<|im_end|>\n<|im_start|>assistant\n"
             Style.PHI3_INSTRUCT -> "$m\n<|end|>\n<|user|>\n$u\n<|end|>\n<|assistant|>\n"
             Style.GEMMA2_IT -> "$m\n<end_of_turn>\n<start_of_turn>user\n$u\n<end_of_turn>\n<start_of_turn>model\n"
+            Style.GEMMA4_IT -> "$m<turn|>\n<|turn>user\n$u<turn|>\n<|turn>model\n"
+            Style.LLAMA3_INSTRUCT ->
+                "$m<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n$u<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
         }
     }
 }
