@@ -302,7 +302,9 @@ class ScriptExecutor(
                             userText = prompt,
                             maxRounds = maxRounds,
                             shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
-                            onTurn = { }
+                            onTurn = { },
+                            // Scheduled scripts run without a UI; never block on interactive tool approval.
+                            onSensitiveToolConfirm = { _, _ -> true },
                         )
                         success = true
                         break

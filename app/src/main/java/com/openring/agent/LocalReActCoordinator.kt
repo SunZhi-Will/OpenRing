@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.openring.BuildConfig
 import com.openring.gemini.model.Content
+import com.openring.settings.AgentGovernanceStore
 import com.openring.localmodel.LocalLlmChatPrompt
 import com.openring.localmodel.LocalLlmEngine
 import kotlinx.serialization.encodeToString
@@ -51,7 +52,11 @@ Tools:
         shouldCancel: () -> Boolean = { false },
         onTurn: (ReActCoordinator.Turn) -> Unit = {},
         onStatus: (String) -> Unit = {},
+        onSensitiveToolConfirm: suspend (String, JsonObject) -> Boolean = { _, _ -> true },
     ): ReActCoordinator.RunResult {
+        val governance = AgentGovernanceStore(context)
+        val maxHist = governance.getChatHistoryTurns()
+        val coercedPrior = if (priorContents.size > maxHist) priorContents.takeLast(maxHist) else priorContents
         val style = LocalLlmChatPrompt.styleForCatalogId(catalogId)
         val agentBlock = buildAgentPreamble(toolCatalogText)
         val mergedSystem = buildString {
@@ -67,7 +72,7 @@ Tools:
             style = style,
             systemPrompt = mergedSystem,
             memoryInjection = memoryInjection,
-            priorContents = priorContents,
+            priorContents = coercedPrior,
             currentUserMessage = userText,
         )
 
@@ -147,6 +152,16 @@ Tools:
                         code = "REPEAT_GUARD",
                         message = "Repeated identical action blocked.",
                     )
+                } else if (governance.isConfirmSensitiveMode() && ToolRiskClassifier.isHighRisk(name)) {
+                    if (!onSensitiveToolConfirm(name, args)) {
+                        ToolDispatcher.ToolResult(
+                            ok = false,
+                            code = "GOVERNANCE_DENIED",
+                            message = "User denied executing tool $name.",
+                        )
+                    } else {
+                        dispatcher.dispatch(name, args)
+                    }
                 } else {
                     dispatcher.dispatch(name, args)
                 }

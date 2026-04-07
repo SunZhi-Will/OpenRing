@@ -7,8 +7,10 @@ import com.openring.gemini.model.Content
 import com.openring.gemini.model.FunctionResponse
 import com.openring.gemini.model.GenerateContentRequest
 import com.openring.gemini.model.Part
+import com.openring.settings.AgentGovernanceStore
 import com.openring.settings.AiPromptStore
 import com.openring.skills.SkillEnabledStore
+import kotlinx.coroutines.delay
 import com.openring.skills.SkillInstructionCatalog
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -53,7 +55,7 @@ class ReActCoordinator(
         val turns: List<Turn>
     )
 
-    fun run(
+    suspend fun run(
         apiKey: String,
         model: String,
         userText: String,
@@ -63,14 +65,21 @@ class ReActCoordinator(
         extraUserParts: List<Part> = emptyList(),
         maxRounds: Int = 30,
         shouldCancel: () -> Boolean = { false },
-        onTurn: (Turn) -> Unit = {}
+        onTurn: (Turn) -> Unit = {},
+        /**
+         * When governance is confirm-sensitive and the tool is high-risk, return false to deny
+         * (model receives GOVERNANCE_DENIED). Chat UI should show a confirmation dialog.
+         */
+        onSensitiveToolConfirm: suspend (String, JsonObject) -> Boolean = { _, _ -> true },
     ): RunResult {
         val tools = ToolSchemas.buildTools(context)
         val baseSystemPrompt = AiPromptStore(context).getSystemPrompt().takeIf { it.isNotBlank() }
         val skillInstructionSection = SkillInstructionCatalog.buildPromptSection(context).takeIf { it.isNotBlank() }
         val systemPrompt = listOfNotNull(baseSystemPrompt, skillInstructionSection).joinToString("\n\n").takeIf { it.isNotBlank() }
         val systemInstruction = systemPrompt?.let { Content(role = "user", parts = listOf(Part(text = it))) }
-        val coercedPrior = if (priorContents.size > 24) priorContents.takeLast(24) else priorContents
+        val governance = AgentGovernanceStore(context)
+        val maxHist = governance.getChatHistoryTurns()
+        val coercedPrior = if (priorContents.size > maxHist) priorContents.takeLast(maxHist) else priorContents
         val contents = mutableListOf<Content>().apply {
             addAll(coercedPrior)
             add(
@@ -230,7 +239,7 @@ class ReActCoordinator(
                     if (scanResult.ok && fp != null && fp == standbyScreenFingerprint) {
                         standbyIdleTicks += 1
                         val waitMs = if (standbyIdleTicks < 10) 1200L else 2200L
-                        Thread.sleep(waitMs)
+                        delay(waitMs)
                         contents.add(
                             Content(
                                 role = "user",
@@ -367,6 +376,16 @@ class ReActCoordinator(
                         code = "REPEAT_GUARD",
                         message = "Repeated identical action blocked. Avoid loops: use exact target match, then click_send_button, or ask for human takeover."
                     )
+                } else if (governance.isConfirmSensitiveMode() && ToolRiskClassifier.isHighRisk(call.name)) {
+                    if (!onSensitiveToolConfirm(call.name, call.args)) {
+                        ToolDispatcher.ToolResult(
+                            ok = false,
+                            code = "GOVERNANCE_DENIED",
+                            message = "User denied executing tool ${call.name}.",
+                        )
+                    } else {
+                        dispatcher.dispatch(call.name, call.args)
+                    }
                 } else {
                     dispatcher.dispatch(call.name, call.args)
                 }

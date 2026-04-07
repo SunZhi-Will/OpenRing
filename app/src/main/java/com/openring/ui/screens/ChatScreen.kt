@@ -113,6 +113,7 @@ import com.openring.agent.ExecutionLogStore
 import com.openring.agent.LocalReActCoordinator
 import com.openring.agent.ReActCoordinator
 import com.openring.agent.RunCancellationRegistry
+import com.openring.agent.ToolRiskClassifier
 import com.openring.agent.ToolSchemas
 import com.openring.chat.ChatAttachmentLoader
 import com.openring.chat.ChatAttachmentModelParts
@@ -131,6 +132,7 @@ import com.openring.data.model.ChatSession
 import com.openring.localmodel.LocalLlmChatPrompt
 import com.openring.localmodel.LocalModelCatalog
 import com.openring.localmodel.LocalModelSupport
+import com.openring.settings.AgentGovernanceStore
 import com.openring.settings.AiPromptStore
 import com.openring.security.ApiKeyStore
 import com.openring.skills.SkillInstructionCatalog
@@ -141,9 +143,11 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -153,6 +157,21 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.Date
 import java.util.UUID
+
+private fun previewToolArgsForApproval(args: JsonObject, maxChars: Int = 420): String {
+    if (args.isEmpty()) return "{}"
+    val head = args.entries.take(6).joinToString(", ") { (k, v) ->
+        val raw = when (v) {
+            is JsonPrimitive -> v.content.replace('\n', ' ').trim()
+            else -> "<…>"
+        }
+        val t = if (raw.length > 80) raw.take(80) + "…" else raw
+        "$k=$t"
+    }
+    val suffix = if (args.size > 6) ", …" else ""
+    val out = "{$head$suffix}"
+    return if (out.length <= maxChars) out else out.take(maxChars) + "…"
+}
 
 private suspend fun reloadChatScreenState(
     chatRepository: ChatRepository,
@@ -220,6 +239,7 @@ fun ChatScreen(
     val chatRepository = remember { ChatRepository(context) }
     val memoryRepository = remember { MemoryRepository(context) }
     val keyStore = remember { ApiKeyStore(context) }
+    val governanceStore = remember { AgentGovernanceStore(context) }
     val modelStore = remember { ModelStore(context) }
     val localModelSupported = remember { LocalModelSupport.isSupportedDevice() }
     val modelChain = modelStore.getModels()
@@ -267,6 +287,12 @@ fun ChatScreen(
     var permissionReminder by remember { mutableStateOf<PermissionReminder?>(null) }
     var permissionReminderShownThisRun by remember { mutableStateOf(false) }
     var processingText by remember { mutableStateOf("正在處理中…") }
+    data class PendingToolApproval(
+        val toolName: String,
+        val argsPreview: String,
+        val onResult: (Boolean) -> Unit,
+    )
+    var pendingToolApproval by remember { mutableStateOf<PendingToolApproval?>(null) }
     var hasEnabledSchedule by remember { mutableStateOf(false) }
     val backgroundWorkCount by BackgroundWorkTracker.activeCount.collectAsState(initial = 0)
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -521,8 +547,12 @@ fun ChatScreen(
                     chatRepository.getOrCreateActiveSessionId()
                 }
                 activeChatSessionId = chatSid
+                val historyTurns = governanceStore.getChatHistoryTurns()
                 val priorContents = withContext(Dispatchers.IO) {
-                    chatRepository.messagesToGeminiContents(chatRepository.getMessages(chatSid))
+                    chatRepository.messagesToGeminiContents(
+                        chatRepository.getMessages(chatSid),
+                        maxTurns = historyTurns,
+                    )
                 }
                 val userMsgId = UUID.randomUUID().toString()
                 val userTs = nowMs()
@@ -580,6 +610,26 @@ fun ChatScreen(
                                         extraUserParts = extraParts,
                                         maxRounds = maxRounds,
                                         shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
+                                        onSensitiveToolConfirm = toolConfirm@{ toolName, args ->
+                                            if (!governanceStore.isConfirmSensitiveMode() ||
+                                                !ToolRiskClassifier.isHighRisk(toolName)
+                                            ) {
+                                                return@toolConfirm true
+                                            }
+                                            suspendCancellableCoroutine { cont ->
+                                                val preview = previewToolArgsForApproval(args)
+                                                runScope.launch(Dispatchers.Main) {
+                                                    pendingToolApproval = PendingToolApproval(
+                                                        toolName = toolName,
+                                                        argsPreview = preview,
+                                                        onResult = { ok ->
+                                                            pendingToolApproval = null
+                                                            if (cont.isActive) cont.resume(ok) {}
+                                                        },
+                                                    )
+                                                }
+                                            }
+                                        },
                                         onTurn = { turn ->
                                             runScope.launch(Dispatchers.Main) {
                                                 recordTurnToLog(turn)
@@ -693,6 +743,26 @@ fun ChatScreen(
                                         toolCatalogText = toolCatalog,
                                         maxRounds = maxRounds,
                                         shouldCancel = { RunCancellationRegistry.isCancelled(runSessionId) },
+                                        onSensitiveToolConfirm = toolConfirm@{ toolName, args ->
+                                            if (!governanceStore.isConfirmSensitiveMode() ||
+                                                !ToolRiskClassifier.isHighRisk(toolName)
+                                            ) {
+                                                return@toolConfirm true
+                                            }
+                                            suspendCancellableCoroutine { cont ->
+                                                val preview = previewToolArgsForApproval(args)
+                                                runScope.launch(Dispatchers.Main) {
+                                                    pendingToolApproval = PendingToolApproval(
+                                                        toolName = toolName,
+                                                        argsPreview = preview,
+                                                        onResult = { ok ->
+                                                            pendingToolApproval = null
+                                                            if (cont.isActive) cont.resume(ok) {}
+                                                        },
+                                                    )
+                                                }
+                                            }
+                                        },
                                         onTurn = { turn ->
                                             runScope.launch(Dispatchers.Main) {
                                                 recordTurnToLog(turn)
@@ -1303,6 +1373,32 @@ fun ChatScreen(
             dismissButton = {
                 TextButton(onClick = { permissionReminder = null }) {
                     Text("稍後再說")
+                }
+            }
+        )
+    }
+
+    pendingToolApproval?.let { req ->
+        AlertDialog(
+            onDismissRequest = { req.onResult(false) },
+            title = { Text(stringResource(R.string.tool_approval_dialog_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.tool_approval_dialog_body,
+                        req.toolName,
+                        req.argsPreview,
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { req.onResult(true) }) {
+                    Text(stringResource(R.string.tool_approval_allow))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { req.onResult(false) }) {
+                    Text(stringResource(R.string.tool_approval_deny))
                 }
             }
         )

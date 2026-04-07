@@ -166,7 +166,7 @@ class ChatRepository(context: Context) {
         }
     }
 
-    fun messagesToGeminiContents(messages: List<ChatMessageEntity>, maxTurns: Int = 24): List<Content> {
+    fun messagesToGeminiContents(messages: List<ChatMessageEntity>, maxTurns: Int = 32): List<Content> {
         val tail = if (messages.size > maxTurns) messages.takeLast(maxTurns) else messages
         return tail.map { m ->
             val parts = mutableListOf<Part>()

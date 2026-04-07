@@ -1,6 +1,7 @@
 package com.openring.gemini
 
 import android.util.Log
+import com.openring.BuildConfig
 import com.openring.gemini.model.Content
 import com.openring.gemini.model.EmbedContentRequest
 import com.openring.gemini.model.EmbedContentResponse
@@ -20,7 +21,9 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 
 class GeminiRestClient(
     /** Defaults are 10s in OkHttp; Gemini + tool payloads often need longer. */
@@ -39,12 +42,53 @@ class GeminiRestClient(
         private const val PARTS_PREVIEW_LIMIT = 6
         private const val PART_TEXT_PREVIEW_LIMIT = 140
         private const val TOTAL_PREVIEW_CHARS_LIMIT = 2200
+
+        private const val MAX_GENERATE_ATTEMPTS = 5
+        private const val INITIAL_BACKOFF_MS = 400L
+        private const val MAX_BACKOFF_MS = 12_000L
     }
 
     fun generateContent(
         apiKey: String,
         model: String,
         request: GenerateContentRequest
+    ): GenerateContentResponse {
+        var attempt = 0
+        var backoffMs = INITIAL_BACKOFF_MS
+        var lastError: Exception? = null
+        while (attempt < MAX_GENERATE_ATTEMPTS) {
+            attempt++
+            try {
+                return executeGenerateContentOnce(apiKey, model, request, attempt)
+            } catch (e: GeminiHttpException) {
+                lastError = e
+                if (attempt >= MAX_GENERATE_ATTEMPTS || !isRetryableHttp(e.httpCode)) throw e
+                logRetry(model, attempt, e.httpCode, backoffMs)
+                Thread.sleep(backoffMs + Random.nextLong(0, 280))
+                backoffMs = (backoffMs * 2).coerceAtMost(MAX_BACKOFF_MS)
+            } catch (e: IOException) {
+                lastError = e
+                if (attempt >= MAX_GENERATE_ATTEMPTS) throw e
+                logRetry(model, attempt, -1, backoffMs)
+                Thread.sleep(backoffMs + Random.nextLong(0, 280))
+                backoffMs = (backoffMs * 2).coerceAtMost(MAX_BACKOFF_MS)
+            }
+        }
+        throw lastError ?: IllegalStateException("Gemini generateContent: exhausted retries")
+    }
+
+    private fun logRetry(model: String, attempt: Int, code: Int, waitMs: Long) {
+        Log.w(TAG, "Gemini retry model=$model attempt=$attempt/$MAX_GENERATE_ATTEMPTS code=$code sleepingMs=$waitMs")
+    }
+
+    private fun isRetryableHttp(code: Int): Boolean =
+        code == 429 || code == 500 || code == 502 || code == 503 || code == 504
+
+    private fun executeGenerateContentOnce(
+        apiKey: String,
+        model: String,
+        request: GenerateContentRequest,
+        attempt: Int,
     ): GenerateContentResponse {
         val url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent"
         val requestContents = request.contents.size
@@ -68,7 +112,7 @@ class GeminiRestClient(
 
         Log.d(
             TAG,
-            "Gemini request model=$model url=$url contents=$requestContents parts=$requestParts approxTextChars=$requestTextChars bodyChars=${body.contentLength()}"
+            "Gemini request model=$model url=$url contents=$requestContents parts=$requestParts approxTextChars=$requestTextChars bodyChars=${body.contentLength()} attempt=$attempt"
         )
         Log.d(
             TAG,
@@ -85,17 +129,29 @@ class GeminiRestClient(
                     TAG,
                     "Gemini failed code=${resp.code} message=${resp.message} model=$model elapsedMs=$elapsedMs body=$preview"
                 )
-                throw IllegalStateException("Gemini HTTP ${resp.code}: ${respBody ?: "empty"}")
+                throw GeminiHttpException(resp.code, respBody)
             }
             return try {
                 val parsed = json.decodeFromString(GenerateContentResponse.serializer(), respBody)
                 val candidates = parsed.candidates.size
                 val functionCalls = parsed.functionCalls()
                 val textChars = parsed.firstText()?.length ?: 0
+                val u = parsed.usageMetadata
+                val usageLog = if (u != null) {
+                    " promptTok=${u.promptTokenCount} candTok=${u.candidatesTokenCount} totalTok=${u.totalTokenCount}"
+                } else {
+                    ""
+                }
                 Log.d(
                     TAG,
-                    "Gemini response model=$model elapsedMs=$elapsedMs candidates=$candidates functionCalls=${functionCalls.size} firstTextChars=$textChars"
+                    "Gemini response model=$model elapsedMs=$elapsedMs candidates=$candidates functionCalls=${functionCalls.size} firstTextChars=$textChars$usageLog"
                 )
+                if (BuildConfig.DEBUG && u != null) {
+                    Log.d(
+                        TAG,
+                        "Gemini usageMetadata model=$model prompt=${u.promptTokenCount} candidates=${u.candidatesTokenCount} total=${u.totalTokenCount}"
+                    )
+                }
                 parsed
             } catch (e: Exception) {
                 val preview = respBody.replace("\n", " ").take(1200)
@@ -176,19 +232,40 @@ class GeminiRestClient(
         )
         val body = json.encodeToString(EmbedContentRequest.serializer(), request)
             .toRequestBody("application/json".toMediaType())
-        val httpRequest = Request.Builder()
-            .url(url)
-            .header("x-goog-api-key", apiKey)
-            .header("Content-Type", "application/json")
-            .post(body)
-            .build()
-        httpClient.newCall(httpRequest).execute().use { resp ->
-            val respBody = resp.body?.string()
-            if (!resp.isSuccessful || respBody == null) {
-                throw IllegalStateException("Gemini embed HTTP ${resp.code}: ${respBody ?: "empty"}")
+        var attempt = 0
+        var backoffMs = INITIAL_BACKOFF_MS
+        var lastError: Exception? = null
+        while (attempt < MAX_GENERATE_ATTEMPTS) {
+            attempt++
+            try {
+                val httpRequest = Request.Builder()
+                    .url(url)
+                    .header("x-goog-api-key", apiKey)
+                    .header("Content-Type", "application/json")
+                    .post(body)
+                    .build()
+                httpClient.newCall(httpRequest).execute().use { resp ->
+                    val respBody = resp.body?.string()
+                    if (!resp.isSuccessful || respBody == null) {
+                        throw GeminiHttpException(resp.code, respBody)
+                    }
+                    return parseEmbeddingValues(respBody)
+                }
+            } catch (e: GeminiHttpException) {
+                lastError = e
+                if (attempt >= MAX_GENERATE_ATTEMPTS || !isRetryableHttp(e.httpCode)) {
+                    throw IllegalStateException("Gemini embed HTTP ${e.httpCode}: ${e.responseBodyPreview ?: "empty"}")
+                }
+                Thread.sleep(backoffMs + Random.nextLong(0, 280))
+                backoffMs = (backoffMs * 2).coerceAtMost(MAX_BACKOFF_MS)
+            } catch (e: IOException) {
+                lastError = e
+                if (attempt >= MAX_GENERATE_ATTEMPTS) throw e
+                Thread.sleep(backoffMs + Random.nextLong(0, 280))
+                backoffMs = (backoffMs * 2).coerceAtMost(MAX_BACKOFF_MS)
             }
-            return parseEmbeddingValues(respBody)
         }
+        throw lastError ?: IllegalStateException("Gemini embed: exhausted retries")
     }
 
     private fun parseEmbeddingValues(respBody: String): FloatArray {

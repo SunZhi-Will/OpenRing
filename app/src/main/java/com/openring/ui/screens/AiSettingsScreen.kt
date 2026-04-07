@@ -13,8 +13,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
@@ -39,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.openring.R
+import com.openring.settings.AgentGovernanceStore
 import com.openring.settings.AiPromptStore
 import com.openring.ui.theme.Spacing
 
@@ -55,8 +58,13 @@ fun AiSettingsScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val promptStore = remember { AiPromptStore(context) }
+    val governanceStore = remember { AgentGovernanceStore(context) }
     var maxRounds by remember { mutableStateOf(promptStore.getMaxRounds()) }
     var showMaxRoundsDialog by remember { mutableStateOf(false) }
+    var automationMode by remember { mutableStateOf(governanceStore.getAutomationMode()) }
+    var chatHistoryTurns by remember { mutableStateOf(governanceStore.getChatHistoryTurns()) }
+    var showAutomationModeDialog by remember { mutableStateOf(false) }
+    var showHistoryTurnsDialog by remember { mutableStateOf(false) }
 
     val systemPromptPreview = remember { promptStore.getSystemPrompt().trim() }
         .lineSequence()
@@ -154,7 +162,98 @@ fun AiSettingsScreen(
                 )
             }
 
+            item {
+                val govSubtitle = if (automationMode == AgentGovernanceStore.MODE_CONFIRM) {
+                    stringResource(R.string.agent_governance_automation_subtitle_confirm)
+                } else {
+                    stringResource(R.string.agent_governance_automation_subtitle_auto)
+                }
+                SettingsNavCard(
+                    icon = Icons.Default.Security,
+                    title = stringResource(R.string.agent_governance_automation_title),
+                    subtitle = govSubtitle,
+                    onClick = { showAutomationModeDialog = true }
+                )
+            }
+
+            item {
+                SettingsNavCard(
+                    icon = Icons.Default.List,
+                    title = stringResource(R.string.agent_governance_chat_history_title),
+                    subtitle = stringResource(R.string.agent_governance_chat_history_subtitle, chatHistoryTurns),
+                    onClick = { showHistoryTurnsDialog = true }
+                )
+            }
+
         }
+    }
+
+    if (showAutomationModeDialog) {
+        AlertDialog(
+            onDismissRequest = { showAutomationModeDialog = false },
+            title = { Text(stringResource(R.string.agent_governance_pick_mode_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text(stringResource(R.string.agent_governance_pick_mode_body))
+                    TextButton(
+                        onClick = {
+                            governanceStore.setAutomationMode(AgentGovernanceStore.MODE_AUTO)
+                            automationMode = AgentGovernanceStore.MODE_AUTO
+                            showAutomationModeDialog = false
+                        }
+                    ) { Text(stringResource(R.string.agent_governance_mode_auto)) }
+                    TextButton(
+                        onClick = {
+                            governanceStore.setAutomationMode(AgentGovernanceStore.MODE_CONFIRM)
+                            automationMode = AgentGovernanceStore.MODE_CONFIRM
+                            showAutomationModeDialog = false
+                        }
+                    ) { Text(stringResource(R.string.agent_governance_mode_confirm)) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAutomationModeDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showHistoryTurnsDialog) {
+        var draft by remember(showHistoryTurnsDialog) { mutableStateOf(chatHistoryTurns.toString()) }
+        AlertDialog(
+            onDismissRequest = { showHistoryTurnsDialog = false },
+            title = { Text(stringResource(R.string.agent_governance_adjust_history_turns)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                    Text(stringResource(R.string.agent_governance_history_turns_range))
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { next ->
+                            draft = next.filter { it.isDigit() }.take(2)
+                        },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.agent_governance_chat_history_title)) }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val parsed = draft.toIntOrNull()
+                        if (parsed != null) {
+                            val normalized = parsed.coerceIn(4, 80)
+                            governanceStore.setChatHistoryTurns(normalized)
+                            chatHistoryTurns = normalized
+                            showHistoryTurnsDialog = false
+                        }
+                    }
+                ) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showHistoryTurnsDialog = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
     }
 
     if (showMaxRoundsDialog) {

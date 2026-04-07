@@ -66,8 +66,20 @@ data class FunctionResponse(
 )
 
 @Serializable
+data class UsageMetadata(
+    @SerialName("promptTokenCount")
+    val promptTokenCount: Int? = null,
+    @SerialName("candidatesTokenCount")
+    val candidatesTokenCount: Int? = null,
+    @SerialName("totalTokenCount")
+    val totalTokenCount: Int? = null,
+)
+
+@Serializable
 data class GenerateContentResponse(
-    val candidates: List<Candidate> = emptyList()
+    val candidates: List<Candidate> = emptyList(),
+    @SerialName("usageMetadata")
+    val usageMetadata: UsageMetadata? = null,
 ) {
     fun firstText(): String? =
         candidates.firstOrNull()
