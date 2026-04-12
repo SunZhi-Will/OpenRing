@@ -92,7 +92,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.11.2")
 
     // Kotlin Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 
     // Networking (Gemini Developer API via REST)
     implementation("com.squareup.okhttp3:okhttp:5.3.2")
