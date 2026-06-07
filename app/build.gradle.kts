@@ -8,8 +8,8 @@ plugins {
 // llama-kotlin-android 會拉較新的 androidx.core；與 compileSdk 36 對齊時強制統一 core 版本。
 configurations.configureEach {
     resolutionStrategy {
-        force("androidx.core:core-ktx:1.18.0")
-        force("androidx.core:core:1.18.0")
+        force("androidx.core:core-ktx:1.19.0")
+        force("androidx.core:core:1.19.0")
     }
 }
 
@@ -69,7 +69,7 @@ tasks.matching { it.name.startsWith("lint") }.configureEach {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.18.0")
+    implementation("androidx.core:core-ktx:1.19.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation(platform("androidx.compose:compose-bom:2026.03.01"))
